@@ -1,6 +1,9 @@
 import asyncio
+import json
 import os
 from typing import Literal
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from langgraph.graph.state import CompiledStateGraph
 from tavily import TavilyClient
 from deepagents import create_deep_agent
@@ -28,6 +31,15 @@ instruction = """あなたは自宅に置かれている音声で応答する日
 - 知らないことがあれば、internet_searchツールを使って情報を取得し、回答してください。
 """
 
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def create_agent()-> CompiledStateGraph:
     agent = create_deep_agent(
         model="gemini-2.5-flash",
@@ -37,3 +49,76 @@ def create_agent()-> CompiledStateGraph:
     )
 
     return agent
+
+
+def _extract_text(content) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif isinstance(item, str):
+                parts.append(item)
+        return "".join(parts)
+    return str(content)
+
+
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    agent = create_agent()
+    history: list[dict] = []
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                payload = json.loads(raw)
+                user_text = payload.get("content", "")
+            except json.JSONDecodeError:
+                user_text = raw
+
+            if not user_text:
+                await websocket.send_json({"type": "error", "message": "空のメッセージです。"})
+                continue
+
+            history.append({"role": "user", "content": user_text})
+            await websocket.send_json({"type": "assistant_start"})
+
+            assistant_text = ""
+            async for chunk in agent.astream({"messages": history}):
+                for node_data in chunk.values():
+                    if node_data is None or "messages" not in node_data:
+                        continue
+
+                    messages = node_data["messages"]
+                    if not isinstance(messages, list):
+                        messages = [messages]
+
+                    for message in messages:
+                        message_type = message.__class__.__name__
+                        if message_type not in {"AIMessage", "AIMessageChunk"}:
+                            continue
+
+                        text = _extract_text(message.content)
+                        if not text:
+                            continue
+
+                        assistant_text += text
+                        await websocket.send_json(
+                            {"type": "assistant_chunk", "content": text}
+                        )
+
+            if assistant_text:
+                history.append({"role": "assistant", "content": assistant_text})
+
+            await websocket.send_json({"type": "assistant_end"})
+    except WebSocketDisconnect:
+        return
