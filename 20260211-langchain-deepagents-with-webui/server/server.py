@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from typing import Literal
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,6 +10,8 @@ from tavily import TavilyClient
 from deepagents import create_deep_agent
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("websocket")
 
 async def internet_search(
     query: str,
@@ -76,6 +79,12 @@ def _extract_thoughts(message) -> str:
     return ""
 
 
+def _truncate_text(text: str, limit: int = 3000) -> tuple[str, bool]:
+    if len(text) <= limit:
+        return text, False
+    return text[:limit] + "... (truncated)", True
+
+
 @app.get("/")
 async def root():
     return {"status": "ok"}
@@ -86,81 +95,93 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     agent = create_agent()
     history: list[dict] = []
+    logger.info("WebSocket connected")
 
     try:
         while True:
-            raw = await websocket.receive_text()
             try:
-                payload = json.loads(raw)
-                user_text = payload.get("content", "")
-            except json.JSONDecodeError:
-                user_text = raw
+                raw = await websocket.receive_text()
+                logger.info("Received message: %s", raw)
+                try:
+                    payload = json.loads(raw)
+                    user_text = payload.get("content", "")
+                except json.JSONDecodeError:
+                    user_text = raw
 
-            if not user_text:
-                await websocket.send_json({"type": "error", "message": "空のメッセージです。"})
-                continue
+                if not user_text:
+                    await websocket.send_json({"type": "error", "message": "空のメッセージです。"})
+                    continue
 
-            history.append({"role": "user", "content": user_text})
-            await websocket.send_json({"type": "assistant_start"})
+                history.append({"role": "user", "content": user_text})
+                await websocket.send_json({"type": "assistant_start"})
 
-            assistant_text = ""
-            async for chunk in agent.astream({"messages": history}):
-                for node_name, node_data in chunk.items():
-                    if node_data is None or "messages" not in node_data:
-                        continue
-
-                    await websocket.send_json({"type": "agent_step", "node": node_name})
-
-                    messages = node_data["messages"]
-                    if not isinstance(messages, list):
-                        messages = [messages]
-
-                    for message in messages:
-                        message_type = message.__class__.__name__
-                        if message_type == "ToolMessage":
-                            tool_name = getattr(message, "name", None) or "tool"
-                            tool_content = _extract_text(message.content)
-                            await websocket.send_json(
-                                {
-                                    "type": "tool_result",
-                                    "name": tool_name,
-                                    "content": tool_content,
-                                }
-                            )
+                assistant_text = ""
+                async for chunk in agent.astream({"messages": history}):
+                    for node_name, node_data in chunk.items():
+                        if node_data is None or "messages" not in node_data:
                             continue
 
-                        tool_calls = getattr(message, "tool_calls", None)
-                        if tool_calls:
-                            for tool_call in tool_calls:
+                        await websocket.send_json({"type": "agent_step", "node": node_name})
+
+                        messages = node_data["messages"]
+                        if not isinstance(messages, list):
+                            messages = [messages]
+
+                        for message in messages:
+                            message_type = message.__class__.__name__
+                            if message_type == "ToolMessage":
+                                tool_name = getattr(message, "name", None) or "tool"
+                                tool_content = _extract_text(message.content)
+                                tool_content, truncated = _truncate_text(tool_content)
+                                if truncated:
+                                    logger.info("Tool result truncated: %s", tool_name)
                                 await websocket.send_json(
                                     {
-                                        "type": "tool_call",
-                                        "name": tool_call.get("name"),
-                                        "args": tool_call.get("args"),
+                                        "type": "tool_result",
+                                        "name": tool_name,
+                                        "content": tool_content,
                                     }
                                 )
+                                continue
 
-                        thoughts = _extract_thoughts(message)
-                        if thoughts:
+                            tool_calls = getattr(message, "tool_calls", None)
+                            if tool_calls:
+                                for tool_call in tool_calls:
+                                    await websocket.send_json(
+                                        {
+                                            "type": "tool_call",
+                                            "name": tool_call.get("name"),
+                                            "args": tool_call.get("args"),
+                                        }
+                                    )
+
+                            thoughts = _extract_thoughts(message)
+                            if thoughts:
+                                await websocket.send_json(
+                                    {"type": "assistant_thought", "content": thoughts}
+                                )
+
+                            if message_type not in {"AIMessage", "AIMessageChunk"}:
+                                continue
+
+                            text = _extract_text(message.content)
+                            if not text:
+                                continue
+
+                            assistant_text += text
                             await websocket.send_json(
-                                {"type": "assistant_thought", "content": thoughts}
+                                {"type": "assistant_chunk", "content": text}
                             )
 
-                        if message_type not in {"AIMessage", "AIMessageChunk"}:
-                            continue
+                if assistant_text:
+                    history.append({"role": "assistant", "content": assistant_text})
 
-                        text = _extract_text(message.content)
-                        if not text:
-                            continue
-
-                        assistant_text += text
-                        await websocket.send_json(
-                            {"type": "assistant_chunk", "content": text}
-                        )
-
-            if assistant_text:
-                history.append({"role": "assistant", "content": assistant_text})
-
-            await websocket.send_json({"type": "assistant_end"})
+                await websocket.send_json({"type": "assistant_end"})
+            except Exception as exc:
+                logger.exception("WebSocket loop error: %s", exc)
+                await websocket.send_json(
+                    {"type": "error", "message": "サーバー側でエラーが発生しました。"}
+                )
     except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
         return
