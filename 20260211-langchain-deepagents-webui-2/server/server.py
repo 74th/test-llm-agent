@@ -117,20 +117,20 @@ async def websocket_endpoint(websocket: WebSocket):
     agent = create_agent()
     # 会話履歴を保持
     conversation_history = []
+    # メッセージキュー
+    message_queue = asyncio.Queue()
+    # 現在実行中のエージェントタスク
+    current_agent_task = None
 
-    try:
-        while True:
-            # クライアントからのメッセージを受信
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
-            user_message = message_data.get("message", "")
+    async def run_agent(user_message):
+        """エージェントを実行"""
+        # ユーザーメッセージを履歴に追加
+        conversation_history.append({"role": "user", "content": user_message})
 
-            # ユーザーメッセージを履歴に追加
-            conversation_history.append({"role": "user", "content": user_message})
+        # エージェントからの応答を収集
+        assistant_messages = []
 
-            # エージェントからの応答を収集
-            assistant_messages = []
-
+        try:
             # エージェントを実行（全履歴を渡す）
             async for event in agent.astream({"messages": conversation_history}):
                 # イベントを整形
@@ -157,14 +157,84 @@ async def websocket_endpoint(websocket: WebSocket):
                 "type": "complete"
             }))
 
+        except asyncio.CancelledError:
+            # タスクがキャンセルされた場合
+            await websocket.send_text(json.dumps({
+                "type": "interrupted",
+                "message": "処理が中断されました"
+            }))
+            # 未完了の応答も履歴に追加（もしあれば）
+            if assistant_messages:
+                full_response = "\n".join(assistant_messages)
+                conversation_history.append({"role": "assistant", "content": full_response})
+            raise
+
+    async def process_agent():
+        """エージェント処理ループ"""
+        nonlocal current_agent_task
+
+        while True:
+            # キューからメッセージを取得
+            user_message = await message_queue.get()
+
+            # エージェント実行タスクを作成して実行
+            current_agent_task = asyncio.create_task(run_agent(user_message))
+            try:
+                await current_agent_task
+            except asyncio.CancelledError:
+                pass
+
+            message_queue.task_done()
+
+    async def receive_messages():
+        """メッセージを受信するタスク"""
+        nonlocal current_agent_task
+
+        try:
+            while True:
+                # クライアントからのメッセージを受信
+                data = await websocket.receive_text()
+                message_data = json.loads(data)
+                user_message = message_data.get("message", "")
+
+                # 現在実行中のエージェントタスクがあればキャンセル
+                if current_agent_task and not current_agent_task.done():
+                    current_agent_task.cancel()
+                    try:
+                        await current_agent_task
+                    except asyncio.CancelledError:
+                        pass
+
+                # メッセージをキューに追加
+                await message_queue.put(user_message)
+
+        except WebSocketDisconnect:
+            print("WebSocket disconnected")
+            raise
+
+    try:
+        # エージェント処理タスクを起動
+        agent_process_task = asyncio.create_task(process_agent())
+
+        # メッセージ受信タスクを実行
+        await receive_messages()
+
     except WebSocketDisconnect:
         print("WebSocket disconnected")
+        if agent_process_task and not agent_process_task.done():
+            agent_process_task.cancel()
+        if current_agent_task and not current_agent_task.done():
+            current_agent_task.cancel()
     except Exception as e:
         print(f"Error: {e}")
         await websocket.send_text(json.dumps({
             "type": "error",
             "message": str(e)
         }))
+        if agent_process_task and not agent_process_task.done():
+            agent_process_task.cancel()
+        if current_agent_task and not current_agent_task.done():
+            current_agent_task.cancel()
 
 if __name__ == "__main__":
     import uvicorn

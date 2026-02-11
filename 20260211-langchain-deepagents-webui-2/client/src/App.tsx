@@ -98,6 +98,13 @@ function App() {
         }])
       } else if (data.type === 'complete') {
         setIsLoading(false)
+      } else if (data.type === 'interrupted') {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'system',
+          content: data.message
+        }])
+        setIsLoading(false)
       } else if (data.type === 'error') {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
@@ -138,7 +145,7 @@ function App() {
   }
 
   const sendMessage = () => {
-    if (!input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || isLoading) {
+    if (!input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return
     }
 
@@ -244,12 +251,12 @@ function App() {
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="メッセージを入力..."
-          disabled={!isConnected || isLoading}
+          disabled={!isConnected}
           className="input"
         />
         <button
           onClick={sendMessage}
-          disabled={!isConnected || !input.trim() || isLoading}
+          disabled={!isConnected || !input.trim()}
           className="send-button"
         >
           送信
