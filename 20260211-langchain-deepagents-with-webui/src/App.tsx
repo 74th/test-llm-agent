@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Message = {
   role: "user" | "assistant" | "system";
   content: string;
+  kind?: "info" | "tool" | "thought" | "step";
 };
 
 type ConnectionState = "disconnected" | "connecting" | "connected";
@@ -14,10 +15,13 @@ const defaultWsUrl = () => {
 };
 
 export default function App() {
-  const [messages, setMessages] = useState<Message[]>([{
-    role: "system",
-    content: "WebSocketで接続して会話できます。"
-  }]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "system",
+      content: "WebSocketで接続して会話できます。",
+      kind: "info",
+    },
+  ]);
   const [input, setInput] = useState("");
   const [wsUrl, setWsUrl] = useState(defaultWsUrl);
   const [state, setState] = useState<ConnectionState>("disconnected");
@@ -52,7 +56,7 @@ export default function App() {
       setState("connected");
       setMessages((prev) => [
         ...prev,
-        { role: "system", content: "接続しました。" },
+        { role: "system", content: "接続しました。", kind: "info" },
       ]);
     };
 
@@ -61,14 +65,14 @@ export default function App() {
       setStreaming(false);
       setMessages((prev) => [
         ...prev,
-        { role: "system", content: "接続が切れました。" },
+        { role: "system", content: "接続が切れました。", kind: "info" },
       ]);
     };
 
     ws.onerror = () => {
       setMessages((prev) => [
         ...prev,
-        { role: "system", content: "接続エラーが発生しました。" },
+        { role: "system", content: "接続エラーが発生しました。", kind: "info" },
       ]);
     };
 
@@ -78,6 +82,50 @@ export default function App() {
         if (payload.type === "assistant_start") {
           setStreaming(true);
           setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+          return;
+        }
+        if (payload.type === "agent_step") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system",
+              content: `ステップ: ${payload.node ?? "unknown"}`,
+              kind: "step",
+            },
+          ]);
+          return;
+        }
+        if (payload.type === "assistant_thought") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system",
+              content: `思考: ${payload.content ?? ""}`,
+              kind: "thought",
+            },
+          ]);
+          return;
+        }
+        if (payload.type === "tool_call") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system",
+              content: `ツール実行: ${payload.name ?? "unknown"}(${JSON.stringify(payload.args ?? {})})`,
+              kind: "tool",
+            },
+          ]);
+          return;
+        }
+        if (payload.type === "tool_result") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system",
+              content: `ツール結果: ${payload.name ?? "unknown"}\n${payload.content ?? ""}`,
+              kind: "tool",
+            },
+          ]);
           return;
         }
         if (payload.type === "assistant_chunk") {
@@ -99,14 +147,22 @@ export default function App() {
           setStreaming(false);
           setMessages((prev) => [
             ...prev,
-            { role: "system", content: payload.message ?? "エラーが発生しました。" },
+            {
+              role: "system",
+              content: payload.message ?? "エラーが発生しました。",
+              kind: "info",
+            },
           ]);
           return;
         }
       } catch {
         setMessages((prev) => [
           ...prev,
-          { role: "system", content: "不明なメッセージを受信しました。" },
+          {
+            role: "system",
+            content: "不明なメッセージを受信しました。",
+            kind: "info",
+          },
         ]);
       }
     };
@@ -155,7 +211,10 @@ export default function App() {
 
       <section className="messages">
         {messages.map((message, index) => (
-          <div key={index} className={`message ${message.role}`}>
+          <div
+            key={index}
+            className={`message ${message.role} ${message.kind ? `kind-${message.kind}` : ""}`}
+          >
             <div className="role">{message.role}</div>
             <div className="content">{message.content}</div>
           </div>

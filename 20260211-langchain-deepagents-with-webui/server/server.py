@@ -27,7 +27,7 @@ async def internet_search(
 
 instruction = """あなたは自宅に置かれている音声で応答する日本語のAIホームエージェントです。以下のように振る舞ってください。
 - 音声エージェントであるため、ユーザーへの応答はすべて日本語で、マークダウンのように構造化された形式ではなく、自然な会話形式で行ってください。
-- 音声応答は3分程度に収めてください。
+- 音声応答は3文程度に収めてください。
 - 知らないことがあれば、internet_searchツールを使って情報を取得し、回答してください。
 """
 
@@ -65,6 +65,17 @@ def _extract_text(content) -> str:
     return str(content)
 
 
+def _extract_thoughts(message) -> str:
+    additional = getattr(message, "additional_kwargs", None)
+    if not isinstance(additional, dict):
+        return ""
+    for key in ("reasoning", "thought", "analysis", "thinking"):
+        value = additional.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
 @app.get("/")
 async def root():
     return {"status": "ok"}
@@ -94,9 +105,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
             assistant_text = ""
             async for chunk in agent.astream({"messages": history}):
-                for node_data in chunk.values():
+                for node_name, node_data in chunk.items():
                     if node_data is None or "messages" not in node_data:
                         continue
+
+                    await websocket.send_json({"type": "agent_step", "node": node_name})
 
                     messages = node_data["messages"]
                     if not isinstance(messages, list):
@@ -104,6 +117,35 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     for message in messages:
                         message_type = message.__class__.__name__
+                        if message_type == "ToolMessage":
+                            tool_name = getattr(message, "name", None) or "tool"
+                            tool_content = _extract_text(message.content)
+                            await websocket.send_json(
+                                {
+                                    "type": "tool_result",
+                                    "name": tool_name,
+                                    "content": tool_content,
+                                }
+                            )
+                            continue
+
+                        tool_calls = getattr(message, "tool_calls", None)
+                        if tool_calls:
+                            for tool_call in tool_calls:
+                                await websocket.send_json(
+                                    {
+                                        "type": "tool_call",
+                                        "name": tool_call.get("name"),
+                                        "args": tool_call.get("args"),
+                                    }
+                                )
+
+                        thoughts = _extract_thoughts(message)
+                        if thoughts:
+                            await websocket.send_json(
+                                {"type": "assistant_thought", "content": thoughts}
+                            )
+
                         if message_type not in {"AIMessage", "AIMessageChunk"}:
                             continue
 

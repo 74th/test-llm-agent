@@ -156,6 +156,20 @@ button:not(:disabled):hover {
   background: #fef3c7;
 }
 
+.message.system.kind-step {
+  background: #e0f2fe;
+}
+
+.message.system.kind-tool {
+  background: #f1f5f9;
+  border-left: 4px solid #38bdf8;
+}
+
+.message.system.kind-thought {
+  background: #ede9fe;
+  border-left: 4px solid #8b5cf6;
+}
+
 .role {
   font-weight: 700;
   text-transform: uppercase;
