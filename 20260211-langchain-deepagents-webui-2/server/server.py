@@ -115,6 +115,8 @@ def format_event(event):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     agent = create_agent()
+    # 会話履歴を保持
+    conversation_history = []
 
     try:
         while True:
@@ -123,8 +125,14 @@ async def websocket_endpoint(websocket: WebSocket):
             message_data = json.loads(data)
             user_message = message_data.get("message", "")
 
-            # エージェントを実行
-            async for event in agent.astream({"messages": [{"role": "user", "content": user_message}]}):
+            # ユーザーメッセージを履歴に追加
+            conversation_history.append({"role": "user", "content": user_message})
+
+            # エージェントからの応答を収集
+            assistant_messages = []
+
+            # エージェントを実行（全履歴を渡す）
+            async for event in agent.astream({"messages": conversation_history}):
                 # イベントを整形
                 formatted_events = format_event(event)
 
@@ -134,6 +142,15 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": formatted_event["type"],
                         "data": formatted_event
                     }))
+
+                    # テキスト応答を履歴用に収集
+                    if formatted_event["type"] == "text":
+                        assistant_messages.append(formatted_event["content"])
+
+            # アシスタントの応答を履歴に追加
+            if assistant_messages:
+                full_response = "\n".join(assistant_messages)
+                conversation_history.append({"role": "assistant", "content": full_response})
 
             # 完了メッセージを送信
             await websocket.send_text(json.dumps({
