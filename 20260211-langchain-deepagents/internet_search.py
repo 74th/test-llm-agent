@@ -1,18 +1,20 @@
 import os
+import asyncio
 from typing import Literal
 from tavily import TavilyClient
 from deepagents import create_deep_agent
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
-def internet_search(
+async def internet_search(
     query: str,
     max_results: int = 5,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = False,
 ):
     """Run a web search"""
-    return tavily_client.search(
+    return await asyncio.to_thread(
+        tavily_client.search,
         query,
         max_results=max_results,
         include_raw_content=include_raw_content,
@@ -32,43 +34,48 @@ agent = create_deep_agent(
     system_prompt=instruction,
 )
 
-# エージェントをストリーミング実行
-print("=== エージェント実行開始 ===\n")
+async def main():
+    # エージェントをストリーミング実行
+    print("=== エージェント実行開始 ===\n")
 
-for chunk in agent.stream({"messages": [{"role": "user", "content": "今日の和光市の天気は？"}]}):
-    # チャンクの各ノードを処理
-    for node_name, node_data in chunk.items():
-        # node_dataがNoneの場合はスキップ
-        if node_data is None:
-            continue
+    async for chunk in agent.astream({"messages": [{"role": "user", "content": "今日の和光市の天気は？"}]}):
+        # チャンクの各ノードを処理
+        for node_name, node_data in chunk.items():
+            # node_dataがNoneの場合はスキップ
+            if node_data is None:
+                continue
 
-        if "messages" in node_data:
-            messages = node_data["messages"]
-            # messagesがリストでない場合（Overwriteなど）は、リストに変換
-            if not isinstance(messages, list):
-                messages = [messages]
+            if "messages" in node_data:
+                messages = node_data["messages"]
+                # messagesがリストでない場合（Overwriteなど）は、リストに変換
+                if not isinstance(messages, list):
+                    messages = [messages]
 
-            for message in messages:
-                # ツールの実行結果
-                if message.__class__.__name__ == "ToolMessage":
-                    print(f"✅ ツール実行完了\n")
-                    continue
+                for message in messages:
+                    # ツールの実行結果
+                    if message.__class__.__name__ == "ToolMessage":
+                        print(f"✅ ツール実行完了\n")
+                        continue
 
-                # AIの応答（思考や会話）
-                if hasattr(message, "content") and message.content:
-                    content = message.content
-                    # contentがリストの場合、textを抽出
-                    if isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, dict) and 'text' in item:
-                                print(f"💭 {item['text']}")
-                    else:
-                        print(f"💭 {content}")
+                    # AIの応答（思考や会話）
+                    if hasattr(message, "content") and message.content:
+                        content = message.content
+                        # contentがリストの場合、textを抽出
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict) and 'text' in item:
+                                    print(f"💭 {item['text']}")
+                        else:
+                            print(f"💭 {content}")
 
-                # ツール呼び出し
-                if hasattr(message, "tool_calls") and message.tool_calls:
-                    for tool_call in message.tool_calls:
-                        print(f"🔧 ツール実行: {tool_call['name']}")
-                        print(f"   引数: {tool_call['args']}")
+                    # ツール呼び出し
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            print(f"🔧 ツール実行: {tool_call['name']}")
+                            print(f"   引数: {tool_call['args']}")
 
-print("\n=== 実行完了 ===")
+    print("\n=== 実行完了 ===")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
