@@ -1,7 +1,0 @@
-{
-    "dependencies": ["."],
-    "graphs": {
-        "agent": "./using_skill_and_tools.py:agent"
-    },
-    "env": ".env"
-}
