@@ -3,6 +3,9 @@ import os
 from typing import Literal
 from tavily import TavilyClient
 from deepagents import create_deep_agent
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+import json
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
@@ -27,9 +30,125 @@ instruction = """あなたは自宅に置かれている音声で応答する日
 - 知らないことがあれば、internet_searchツールを使って情報を取得し、回答してください。
 """
 
-agent = create_deep_agent(
-    model="gemini-2.5-flash",
-    # model="gemini-3-flash-preview",
-    tools=[internet_search],
-    system_prompt=instruction,
+def create_agent():
+    return create_deep_agent(
+        model="gemini-2.5-flash",
+        # model="gemini-3-flash-preview",
+        tools=[internet_search],
+        system_prompt=instruction,
+    )
+
+app = FastAPI()
+
+# CORS設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {"message": "DeepAgent WebSocket Server"}
+
+def format_event(event):
+    """イベントを整形してクライアントに送信する形式に変換"""
+    formatted_events = []
+
+    for node_name, node_data in event.items():
+        if node_name == "model":
+            # モデルからの応答を処理
+            messages = node_data.get("messages", [])
+            for msg in messages:
+                # AIメッセージのテキストコンテンツを抽出
+                if hasattr(msg, "content"):
+                    if isinstance(msg.content, list):
+                        for content_item in msg.content:
+                            if isinstance(content_item, dict) and content_item.get("type") == "text":
+                                text = content_item.get("text", "")
+                                if text:
+                                    formatted_events.append({
+                                        "type": "text",
+                                        "content": text
+                                    })
+                    elif isinstance(msg.content, str):
+                        if msg.content:
+                            formatted_events.append({
+                                "type": "text",
+                                "content": msg.content
+                            })
+
+                # ツール呼び出しを抽出
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        formatted_events.append({
+                            "type": "tool_call",
+                            "tool_name": tool_call.get("name", "unknown"),
+                            "args": tool_call.get("args", {})
+                        })
+
+        elif node_name == "tools":
+            # ツール実行結果を処理
+            messages = node_data.get("messages", [])
+            for msg in messages:
+                if hasattr(msg, "content"):
+                    try:
+                        # ツール実行結果をJSONとして解析
+                        result = json.loads(msg.content) if isinstance(msg.content, str) else msg.content
+                        formatted_events.append({
+                            "type": "tool_result",
+                            "tool_name": getattr(msg, "name", "unknown"),
+                            "result": result
+                        })
+                    except:
+                        formatted_events.append({
+                            "type": "tool_result",
+                            "tool_name": getattr(msg, "name", "unknown"),
+                            "result": str(msg.content)
+                        })
+
+    return formatted_events
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    agent = create_agent()
+
+    try:
+        while True:
+            # クライアントからのメッセージを受信
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            user_message = message_data.get("message", "")
+
+            # エージェントを実行
+            async for event in agent.astream({"messages": [{"role": "user", "content": user_message}]}):
+                # イベントを整形
+                formatted_events = format_event(event)
+
+                # 整形されたイベントをクライアントに送信
+                for formatted_event in formatted_events:
+                    await websocket.send_text(json.dumps({
+                        "type": formatted_event["type"],
+                        "data": formatted_event
+                    }))
+
+            # 完了メッセージを送信
+            await websocket.send_text(json.dumps({
+                "type": "complete"
+            }))
+
+    except WebSocketDisconnect:
+        print("WebSocket disconnected")
+    except Exception as e:
+        print(f"Error: {e}")
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "message": str(e)
+        }))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

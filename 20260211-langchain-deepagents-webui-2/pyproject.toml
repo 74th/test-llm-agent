@@ -9,4 +9,7 @@ dependencies = [
     "langchain-google-vertexai>=3.2.2",
     "langgraph-cli[inmem]>=0.4.12",
     "tavily-python>=0.7.21",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "websockets>=14.1",
 ]
