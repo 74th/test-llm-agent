@@ -1,0 +1,12 @@
+[project]
+name = "20260211-langchain"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deepagents>=0.4.0",
+    "langchain-google-vertexai>=3.2.2",
+    "langgraph-cli[inmem]>=0.4.12",
+    "tavily-python>=0.7.21",
+]
