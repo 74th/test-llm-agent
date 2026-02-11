@@ -1,6 +1,7 @@
 import asyncio
 import os
 from typing import Literal
+from langgraph.graph.state import CompiledStateGraph
 from tavily import TavilyClient
 from deepagents import create_deep_agent
 
@@ -27,9 +28,12 @@ instruction = """あなたは自宅に置かれている音声で応答する日
 - 知らないことがあれば、internet_searchツールを使って情報を取得し、回答してください。
 """
 
-agent = create_deep_agent(
-    model="gemini-2.5-flash",
-    # model="gemini-3-flash-preview",
-    tools=[internet_search],
-    system_prompt=instruction,
-)
+def create_agent()-> CompiledStateGraph:
+    agent = create_deep_agent(
+        model="gemini-2.5-flash",
+        # model="gemini-3-flash-preview",
+        tools=[internet_search],
+        system_prompt=instruction,
+    )
+
+    return agent

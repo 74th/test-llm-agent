@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "20260211-langchain"
+name = "20260211-langchain-agents"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
