@@ -21,7 +21,6 @@ class WeatherSearchInput(BaseModel):
 
 
 @tool("weather_search", description="天気を調べるツール", args_schema=WeatherSearchInput)
-# @tool("weather_search", description="天気を調べるツール。都道府県市区町村をつなげた文字を引数にとる。例: 埼玉県さいたま市")
 async def whther_search(
     location_name: str
 ):
@@ -49,11 +48,7 @@ agent = create_deep_agent(
     checkpointer=checkpointer,
 )
 
-question = "今日のさいたま市の天気は？"
-# question = "ペンテルパンテルとは何ですか？"
-# question = "日本では、株価が上がると天気が良くなるって本当？"
-
-async def main():
+async def query(question: str):
     # エージェントをストリーミング実行
     print("=== エージェント実行開始 ===\n")
 
@@ -97,7 +92,3 @@ async def main():
                             print(f"   引数: {tool_call['args']}")
 
     print("\n=== 実行完了 ===")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
