@@ -7,6 +7,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/internet_search.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "using_skill_and_tools",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/using_skill_and_tools.py",
+            "console": "integratedTerminal"
         }
     ]
 }
