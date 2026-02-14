@@ -1,6 +1,7 @@
 ---
 name: how-to-search-weather
-description: 天気を調べる時に**絶対**見るべき
+description: 天気の調べ方
+# description: 天気を調べる時に**絶対**見るべき
 ---
 
 ツールweather_searchを呼び出すと天気を調べることができる。

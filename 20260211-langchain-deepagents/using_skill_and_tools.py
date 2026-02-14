@@ -1,8 +1,8 @@
 import asyncio
 import pathlib
 import os
-from typing import Literal
 from tavily import TavilyClient
+from pydantic import BaseModel, Field
 from deepagents import create_deep_agent
 from langchain_aws import ChatBedrock
 from langchain.tools import tool
@@ -16,20 +16,24 @@ SKILLS_DIR = pathlib.Path(__file__).parent / "skills"
 
 checkpointer = MemorySaver()
 
+class WeatherSearchInput(BaseModel):
+    location_name: str = Field(description="都道府県市区町村をつなげた文字列。例: 埼玉県さいたま市")
 
-@tool("weather_search", description="天気を調べるツール。使い方はSKILLのhow-to-search-weatherを参照。")
+
+@tool("weather_search", description="天気を調べるツール", args_schema=WeatherSearchInput)
 # @tool("weather_search", description="天気を調べるツール。都道府県市区町村をつなげた文字を引数にとる。例: 埼玉県さいたま市")
 async def whther_search(
-    query: str,
+    location_name: str
 ):
-    """Run a web search"""
-    print(f"weather_searchツールが呼び出されました: {query}")
+    print(f"weather_searchツールが呼び出されました: {location_name}")
     return "晴れ"
 
 
 instruction = """あなたは自宅に置かれている音声で応答する日本語のAIホームエージェントです。以下のように振る舞ってください。
 - 音声エージェントであるため、ユーザーへの応答はすべて日本語で、マークダウンのように構造化された形式ではなく、自然な会話形式で行ってください。
 - 音声応答は3文程度に収めてください。
+- **スキルは関連性がありそうであれば必ず参照すること**
+- スキルを呼び出すときには、スキルを呼び出すことを明示的に宣言する必要はありません。
 """
 agent = create_deep_agent(
     backend=FilesystemBackend(root_dir=ROOT_DIR.as_posix()),
@@ -45,8 +49,9 @@ agent = create_deep_agent(
     checkpointer=checkpointer,
 )
 
-question = "今日の和光市の天気は？"
+question = "今日のさいたま市の天気は？"
 # question = "ペンテルパンテルとは何ですか？"
+# question = "日本では、株価が上がると天気が良くなるって本当？"
 
 async def main():
     # エージェントをストリーミング実行
