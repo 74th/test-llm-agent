@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        USERNAME: node
+    user: node
+    init: true
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:cached
+      - ../user_home:/home/node:cached
+    # Uncomment to publish container ports to the host
+    # ports:
+    #   - "3000:3000"
