@@ -1,59 +1,68 @@
-import asyncio
+from datetime import datetime, timezone, timedelta
+
 import pathlib
-import os
-from langchain_google_genai import ChatGoogleGenerativeAI
-from tavily import TavilyClient
-from pydantic import BaseModel, Field
 from deepagents import create_deep_agent
-from langchain_aws import ChatBedrock
-from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from deepagents.backends.filesystem import FilesystemBackend
 from langchain_core.tracers.langchain import wait_for_all_tracers
-
-
-tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
+from langchain.tools import tool
 
 WORKSPACE_DIR = pathlib.Path(__file__).parent / "workspace"
 SKILLS_DIR = WORKSPACE_DIR / "skills"
 
 checkpointer = MemorySaver()
 
-class WeatherSearchInput(BaseModel):
-    location_name: str = Field(description="都道府県市区町村をつなげた文字列。例: 埼玉県さいたま市")
+genai_client = genai.Client()
 
+JST = timezone(timedelta(hours=+9), 'JST')
+current_date = datetime.now(JST).strftime("%Y-%m-%d")
 
-@tool("weather_search", description="天気を調べるツール", args_schema=WeatherSearchInput)
-async def whther_search(
-    location_name: str
-):
-    print(f"weather_searchツールが呼び出されました: {location_name}")
-    return "晴れ"
-
-
-instruction = """あなたは自宅に置かれている音声で応答する日本語のAIホームエージェントです。以下のように振る舞ってください。
+instruction = f"""あなたは自宅に置かれている音声で応答する日本語のAIホームエージェントです。以下のように振る舞ってください。
 - 音声エージェントであるため、ユーザーへの応答はすべて日本語で、マークダウンのように構造化された形式ではなく、自然な会話形式で行ってください。
 - 音声応答は3文程度に収めてください。
-- **スキルは関連性がありそうであれば必ず参照すること**
-- スキルを呼び出すときには、スキルを呼び出すことを明示的に宣言する必要はありません。
+- 今日は {current_date} です。ユーザーからの質問に答える際は、現在の日付を考慮してください。
 """
+
+@tool("google_search", description="Google検索を行うツール。自然言語の質問で聞ける。", args_schema={"query": str})
+def google_search(query: str):
+    grounding_tool = types.Tool(
+        google_search=types.GoogleSearch()
+    )
+
+    config = types.GenerateContentConfig(
+        tools=[grounding_tool]
+    )
+
+    response = genai_client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=query,
+        config=config,
+    )
+
+    return response.text
+
+# 要: GOOGLE_API_KEY 環境変数
+model = ChatGoogleGenerativeAI(model="gemini-3-flash-preview")
+
 agent = create_deep_agent(
     backend=FilesystemBackend(root_dir=WORKSPACE_DIR.as_posix()),
+    model=model,
+    # Web検索ツールを有効化
 
-    # Bedrockの Claude
-    # model=ChatBedrock(
-    #     # model="jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    #     model="jp.anthropic.claude-haiku-4-5-20251001-v1:0",
-    #     region="ap-northeast-1",
-    # ),
+    # LangChain組み込み
+    # 動かなかったー
+    # tools=[{"type": "google_search"}],
 
-    # Gemini
-    model=ChatGoogleGenerativeAI(model="gemini-3-flash-preview"),
-    tools=[whther_search],
-    skills=[SKILLS_DIR.as_posix()],
+    # 薄いラッパ
+    tools=[google_search],
+
     system_prompt=instruction,
     checkpointer=checkpointer,
 )
+
 
 async def query(question: str):
     # エージェントをストリーミング実行
@@ -64,10 +73,13 @@ async def query(question: str):
         config={"configurable": {"thread_id": "123456"}},
     ):
         # チャンクの各ノードを処理
-        for node_name, node_data in chunk.items():
+        for n, (node_name, node_data) in enumerate(chunk.items()):
             # node_dataがNoneの場合はスキップ
             if node_data is None:
                 continue
+
+            print(f"--- ノード {n+1}: {node_name} ---")
+            print(f"ノードデータ: {node_data}")
 
             if "messages" in node_data:
                 messages = node_data["messages"]
