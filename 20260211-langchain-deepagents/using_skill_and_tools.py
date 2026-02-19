@@ -8,11 +8,13 @@ from langchain_aws import ChatBedrock
 from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from deepagents.backends.filesystem import FilesystemBackend
+from langchain_core.tracers.langchain import wait_for_all_tracers
+
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
-ROOT_DIR = pathlib.Path(__file__).parent
-SKILLS_DIR = pathlib.Path(__file__).parent / "skills"
+WORKSPACE_DIR = pathlib.Path(__file__).parent / "workspace"
+SKILLS_DIR = WORKSPACE_DIR / "skills"
 
 checkpointer = MemorySaver()
 
@@ -35,7 +37,7 @@ instruction = """あなたは自宅に置かれている音声で応答する日
 - スキルを呼び出すときには、スキルを呼び出すことを明示的に宣言する必要はありません。
 """
 agent = create_deep_agent(
-    backend=FilesystemBackend(root_dir=ROOT_DIR.as_posix()),
+    backend=FilesystemBackend(root_dir=WORKSPACE_DIR.as_posix()),
     model=ChatBedrock(
         # model="jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
         model="jp.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -92,3 +94,5 @@ async def query(question: str):
                             print(f"   引数: {tool_call['args']}")
 
     print("\n=== 実行完了 ===")
+
+    wait_for_all_tracers()
