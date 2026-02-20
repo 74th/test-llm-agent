@@ -1,6 +1,7 @@
 import asyncio
 import pathlib
 import os
+import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
 from tavily import TavilyClient
 from pydantic import BaseModel, Field
@@ -11,6 +12,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from deepagents.backends.filesystem import FilesystemBackend
 from langchain_core.tracers.langchain import wait_for_all_tracers
 
+# ログ設定
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
@@ -27,7 +35,7 @@ class WeatherSearchInput(BaseModel):
 async def whther_search(
     location_name: str
 ):
-    print(f"weather_searchツールが呼び出されました: {location_name}")
+    logger.info(f"weather_searchツールが呼び出されました: {location_name}")
     return "晴れ"
 
 
@@ -57,7 +65,7 @@ agent = create_deep_agent(
 
 async def query(question: str):
     # エージェントをストリーミング実行
-    print("=== エージェント実行開始 ===\n")
+    logger.info("=== エージェント実行開始 ===\n")
 
     async for chunk in agent.astream(
         {"messages": [{"role": "user", "content": question}]},
@@ -78,7 +86,7 @@ async def query(question: str):
                 for message in messages:
                     # ツールの実行結果
                     if message.__class__.__name__ == "ToolMessage":
-                        print(f"✅ ツール実行完了\n")
+                        logger.info("✅ ツール実行完了\n")
                         continue
 
                     # AIの応答（思考や会話）
@@ -88,16 +96,16 @@ async def query(question: str):
                         if isinstance(content, list):
                             for item in content:
                                 if isinstance(item, dict) and "text" in item:
-                                    print(f"💭 {item['text']}")
+                                    logger.info(f"💭 {item['text']}")
                         else:
-                            print(f"💭 {content}")
+                            logger.info(f"💭 {content}")
 
                     # ツール呼び出し
                     if hasattr(message, "tool_calls") and message.tool_calls:
                         for tool_call in message.tool_calls:
-                            print(f"🔧 ツール実行: {tool_call['name']}")
-                            print(f"   引数: {tool_call['args']}")
+                            logger.info(f"🔧 ツール実行: {tool_call['name']}")
+                            logger.info(f"   引数: {tool_call['args']}")
 
-    print("\n=== 実行完了 ===")
+    logger.info("\n=== 実行完了 ===")
 
     wait_for_all_tracers()

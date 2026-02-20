@@ -2,6 +2,7 @@
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.pytestArgs": [
-        "-s"
+        "-s",
+        "--log-cli-level=INFO"
     ]
 }
