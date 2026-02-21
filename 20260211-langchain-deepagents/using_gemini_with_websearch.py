@@ -15,7 +15,7 @@ SKILLS_DIR = WORKSPACE_DIR / "skills"
 
 checkpointer = MemorySaver()
 
-genai_client = genai.Client()
+genai_client = genai.Client().aio
 
 JST = timezone(timedelta(hours=+9), 'JST')
 current_date = datetime.now(JST).strftime("%Y-%m-%d")
@@ -27,7 +27,7 @@ instruction = f"""あなたは自宅に置かれている音声で応答する�
 """
 
 @tool("google_search", description="Google検索を行うツール。自然言語の質問で聞ける。", args_schema={"query": str})
-def google_search(query: str):
+async def google_search(query: str):
     grounding_tool = types.Tool(
         google_search=types.GoogleSearch()
     )
@@ -36,7 +36,7 @@ def google_search(query: str):
         tools=[grounding_tool]
     )
 
-    response = genai_client.models.generate_content(
+    response = await genai_client.models.generate_content(
         model="gemini-3-flash-preview",
         contents=query,
         config=config,
