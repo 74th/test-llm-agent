@@ -2,7 +2,9 @@
     "permissions": {
         "allow": [
             "WebSearch(*)",
-            "WebFetch(*)"
+            "WebFetch(*)",
+            "mcp__home-remote__aircon-control(*)"
         ]
-    }
+    },
+    "allowedMcpServers": ["mcp__home-remote"]
 }
