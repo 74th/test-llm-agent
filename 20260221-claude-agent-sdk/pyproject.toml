@@ -1,0 +1,11 @@
+[project]
+name = "20260221-claude-agent-sdk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "claude-agent-sdk>=0.1.39",
+    "jupyter>=1.1.1",
+    "langsmith[claude-agent-sdk]>=0.7.6",
+]
