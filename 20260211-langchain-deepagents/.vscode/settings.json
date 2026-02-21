@@ -4,5 +4,5 @@
     "python.testing.pytestArgs": [
         "-s",
         "--log-cli-level=INFO"
-    ]
+    ],
 }

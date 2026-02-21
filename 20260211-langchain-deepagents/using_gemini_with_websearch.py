@@ -33,11 +33,13 @@ async def google_search(query: str):
     )
 
     config = types.GenerateContentConfig(
-        tools=[grounding_tool]
+        tools=[grounding_tool],
+        thinking_config=types.ThinkingConfig(thinking_budget=0),  # thinking OFF
+        max_output_tokens=256,
     )
 
     response = await genai_client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="gemini-2.5-flash",
         contents=query,
         config=config,
     )
