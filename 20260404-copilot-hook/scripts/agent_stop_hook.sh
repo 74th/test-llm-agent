@@ -11,7 +11,7 @@ date > tmp/stop-hook-time.txt
 payload="$(cat || true)"
 stop_hook_active=false
 
-if printf '%s' "${payload}" | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true'; then
+if printf '%s' "${payload}" | jq -e '.stop_hook_active // false' >/dev/null 2>&1; then
   stop_hook_active=true
 fi
 
