@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "bash ./scripts/agent_stop_hook.sh",
+        "cwd": ".",
+        "timeout": 120
+      }
+    ]
+  }
+}
