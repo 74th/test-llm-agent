@@ -5,6 +5,9 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/.." && pwd)"
 cd "${repo_root}"
 
+mkdir -p tmp
+date > tmp/stop-hook-time.txt
+
 payload="$(cat || true)"
 stop_hook_active=false
 
