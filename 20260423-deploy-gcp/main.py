@@ -13,7 +13,7 @@ from a2a.types import (
 )
 from starlette.applications import Starlette
 
-from .agent_executor import (
+from agent import (
     HelloWorldAgentExecutor,  # type: ignore[import-untyped]
 )
 
