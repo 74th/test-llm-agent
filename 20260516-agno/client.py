@@ -18,7 +18,7 @@ async def main_stream():
         message="こんにちは。文鳥のかわいさについて語ってください。",
     ):
         session_id = event.session_id
-        if isinstance(event, RunContentEvent):
+        if isinstance(event, RunContentEvent) and event.content:
             print(event.content, end="", flush=True)
         elif isinstance(event, RunCompletedEvent):
             print(f"\nRun ID: {event.run_id}")
@@ -30,7 +30,7 @@ async def main_stream():
         message="飼うことはできる？",
         session_id=session_id,
     ):
-        if isinstance(event, RunContentEvent):
+        if isinstance(event, RunContentEvent) and event.content:
             print(event.content, end="", flush=True)
         elif isinstance(event, RunCompletedEvent):
             print(f"\nRun ID: {event.run_id}")
