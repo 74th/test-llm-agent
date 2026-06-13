@@ -1,7 +1,8 @@
 import os
 from typing import Literal
 
-from deepagents import create_deep_agent
+from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
 from langchain_ollama import ChatOllama
 from tavily import TavilyClient
 
@@ -28,23 +29,21 @@ def internet_search(
 
 research_instructions = """あなたは自宅用の音声エージェントです。返答は音声化されるので括弧やマークダウンなどの表現は使わず、文章のみで答えて下さい。3行ほどの短い回答で答えてください。"""
 
-agent = create_deep_agent(
+agent = create_agent(
     model=model,
     tools=[internet_search],
     system_prompt=research_instructions,
+    middleware=[
+        SummarizationMiddleware(
+            model=model,
+            trigger=[("tokens", 12000), ("messages", 30)],
+            keep=("messages", 8),
+        ),
+    ],
 )
 
 for chunk in agent.stream(
-    {"messages": [{"role": "user", "content": "日本の野鳥について何か知ってる？"}]},
+    {"messages": [{"role": "user", "content": "日本の野鳥について何か知ってる？ internet_searchで調べて答えてみて。"}]},
     stream_mode="updates",
-    subgraphs=True,
-    version="v2",
 ):
-    if chunk["type"] == "updates":
-        if chunk["ns"]:
-            # Subagent event - namespace identifies the source
-            print(f"[subagent: {chunk['ns']}]")
-        else:
-            # Main agent event
-            print("[main agent]")
-        print(chunk["data"])
+    print(chunk)
