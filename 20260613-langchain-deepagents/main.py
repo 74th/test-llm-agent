@@ -26,8 +26,7 @@ def internet_search(
         topic=topic,
     )
 
-research_instructions = """
-"""
+research_instructions = """あなたは自宅用の音声エージェントです。返答は音声化されるので括弧やマークダウンなどの表現は使わず、文章のみで答えて下さい。3行ほどの短い回答で答えてください。"""
 
 agent = create_deep_agent(
     model=model,
