@@ -9,16 +9,31 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from tavily import TavilyClient
 
-model = ChatOllama(
-    base_url=os.environ["OLLAMA_URL"],
-    model="gemma4:26b-a4b-it-qat",
-)
+from llama_reasoning_chat import LlamaServerReasoningChatModel
 
-model = ChatOpenAI(
-    base_url="http://constance:30323/v1",
-    api_key="dummy",
-    model="local-model",
-    extra_body={"reasoning_format": "none"}
+select_chat_model = "llama"
+
+if select_chat_model == "ollama":
+    model = ChatOllama(
+        base_url=os.environ["OLLAMA_URL"],
+        model="gemma4:26b-a4b-it-qat",
+    )
+
+elif select_chat_model == "openai":
+    model = ChatOpenAI(
+        base_url="http://constance:30323/v1",
+        api_key="dummy",
+        model="local-model",
+        extra_body={"reasoning_format": "none"}
+    )
+
+elif select_chat_model == "llama":
+    model = LlamaServerReasoningChatModel(
+        base_url="http://constance:30323/v1",
+        api_key="dummy",
+        model="local-model",
+        max_tokens=1024*16,
+        extra_body={},
 )
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
@@ -73,6 +88,7 @@ def run_conversation(turns=10):
 
         # --- 質問者のターン ---
         print("\n[Questioner]")
+        print("Received question:", message["content"])
         result = questioner_agent.invoke(
             {"messages": [message]},
             stream_mode="updates",
@@ -92,6 +108,7 @@ def run_conversation(turns=10):
 
         # --- 回答者のターン ---
         print("\n[Responder]")
+        print("Received question:", message["content"])
         if i == 0:
             messages = [{"role": "assistant", "content": "日本の野鳥について話しましょう。"},message]
         else:
