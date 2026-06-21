@@ -7,10 +7,9 @@ from llama_reasoning_chat import LlamaServerReasoningChatModel
 
 
 def create_agent_instance(instructions: str, reasoning: bool, tools: list = []) ->CompiledStateGraph:
-    if reasoning:
+    if not reasoning:
         extra_body = {
             "chat_template_kwargs": {"enable_thinking": False},
-            "reasoning_format": "none"
         }
     else:
         extra_body = {}

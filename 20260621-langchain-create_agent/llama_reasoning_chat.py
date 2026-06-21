@@ -16,18 +16,20 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
+    AIMessageChunk,
     BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolMessage,
 )
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.messages.tool import tool_call_chunk
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from openai import OpenAI
@@ -92,6 +94,28 @@ def _extract_response_message_fields(message_obj: Any) -> dict[str, Any]:
     return {}
 
 
+def _extract_tool_call_chunks(tool_calls_raw: Any) -> list[dict[str, Any]]:
+    if not tool_calls_raw:
+        return []
+
+    tool_call_chunks: list[dict[str, Any]] = []
+    for raw_tool_call in tool_calls_raw:
+        tool_call_fields = _extract_response_message_fields(raw_tool_call)
+        function_fields = _extract_response_message_fields(
+            tool_call_fields.get("function")
+        )
+        tool_call_chunks.append(
+            tool_call_chunk(
+                name=function_fields.get("name"),
+                args=function_fields.get("arguments"),
+                id=tool_call_fields.get("id"),
+                index=tool_call_fields.get("index"),
+            )
+        )
+
+    return tool_call_chunks
+
+
 class LlamaServerReasoningChatModel(BaseChatModel):
     """Minimal ChatModel for llama.cpp llama-server with reasoning preservation."""
 
@@ -122,6 +146,47 @@ class LlamaServerReasoningChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "llama_server_reasoning_chat"
 
+    def _log_input_messages(self, messages: list[BaseMessage]) -> None:
+        print("==== LLM INPUT MESSAGES ====")
+        print("count:", len(messages))
+        for i, message in enumerate(messages):
+            print(
+                i,
+                type(message).__name__,
+                getattr(message, "type", None),
+                repr(str(message.content)[:120]),
+            )
+        print("============================")
+
+    def _build_request(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        openai_messages = [_lc_message_to_openai(message) for message in messages]
+        request: dict[str, Any] = {
+            "model": self.model,
+            "messages": openai_messages,
+        }
+
+        if self.temperature is not None:
+            request["temperature"] = self.temperature
+
+        if self.max_tokens is not None:
+            request["max_tokens"] = self.max_tokens
+
+        if stop:
+            request["stop"] = stop
+
+        request.update(kwargs)
+
+        # OpenAI SDK accepts llama-server extensions only via extra_body.
+        if self.extra_body:
+            request["extra_body"] = self.extra_body
+
+        return request
+
     def bind_tools(
         self,
         tools: Sequence[dict[str, Any] | type | BaseTool | Any],
@@ -142,33 +207,8 @@ class LlamaServerReasoningChatModel(BaseChatModel):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        print("==== LLM INPUT MESSAGES ====")
-        print("count:", len(messages))
-        for i, m in enumerate(messages):
-            print(i, type(m).__name__, getattr(m, "type", None), repr(str(m.content)[:120]))
-        print("============================")
-
-        openai_messages = [_lc_message_to_openai(m) for m in messages]
-        request: dict[str, Any] = {
-            "model": self.model,
-            "messages": openai_messages,
-        }
-
-        if self.temperature is not None:
-            request["temperature"] = self.temperature
-
-        if self.max_tokens is not None:
-            request["max_tokens"] = self.max_tokens
-
-        if stop:
-            request["stop"] = stop
-
-        request.update(kwargs)
-
-        # This is the important fix:
-        # OpenAI SDK accepts llama-server extensions only via extra_body.
-        if self.extra_body:
-            request["extra_body"] = self.extra_body
+        self._log_input_messages(messages)
+        request = self._build_request(messages, stop=stop, **kwargs)
 
         max_attempts = max(1, self.max_empty_output_retries + 1)
         response: Any = None
@@ -260,3 +300,71 @@ class LlamaServerReasoningChatModel(BaseChatModel):
             generations=[ChatGeneration(message=ai_message)],
             llm_output=llm_output,
         )
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        del run_manager
+
+        self._log_input_messages(messages)
+        request = self._build_request(messages, stop=stop, **kwargs)
+        request["stream"] = True
+
+        response_stream = self._client.chat.completions.create(**request)
+
+        for response_chunk in response_stream:
+            chunk_fields = _extract_response_message_fields(response_chunk)
+            choices = chunk_fields.get("choices") or []
+            if not choices:
+                continue
+
+            choice_fields = _extract_response_message_fields(choices[0])
+            delta_fields = _extract_response_message_fields(choice_fields.get("delta"))
+
+            content = delta_fields.get("content") or ""
+            reasoning_content = (
+                delta_fields.get("reasoning_content")
+                or delta_fields.get("reasoning")
+                or ""
+            )
+            tool_call_chunks = _extract_tool_call_chunks(
+                delta_fields.get("tool_calls")
+            )
+
+            additional_kwargs: dict[str, Any] = {}
+            if reasoning_content:
+                additional_kwargs["reasoning_content"] = reasoning_content
+
+            generation_info: dict[str, Any] = {}
+            if model_name := chunk_fields.get("model"):
+                generation_info["model"] = model_name
+            if response_id := chunk_fields.get("id"):
+                generation_info["id"] = response_id
+            if finish_reason := choice_fields.get("finish_reason"):
+                generation_info["finish_reason"] = finish_reason
+
+            usage_fields = _extract_response_message_fields(chunk_fields.get("usage"))
+            if usage_fields:
+                generation_info["token_usage"] = usage_fields
+
+            if timings := chunk_fields.get("timings"):
+                generation_info["timings"] = timings
+
+            if not (
+                content or reasoning_content or tool_call_chunks or generation_info
+            ):
+                continue
+
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content=content,
+                    additional_kwargs=additional_kwargs,
+                    tool_call_chunks=tool_call_chunks,
+                    id=chunk_fields.get("id"),
+                ),
+                generation_info=generation_info or None,
+            )
