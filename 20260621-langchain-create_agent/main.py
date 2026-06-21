@@ -15,7 +15,12 @@ def check_weather(location: str) -> str:
 
 
 def main():
-    agent = create_agent_instance(QUESTIONER_INSTRUCTIONS)
+    if st.session_state.get("agent") is None:
+        agent = create_agent_instance(QUESTIONER_INSTRUCTIONS)
+        st.session_state.agent = agent
+    else:
+        agent = st.session_state.agent
+
     # 3. Streamlit UIの実装
     st.title("AI エージェント")
 
