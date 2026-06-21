@@ -16,7 +16,7 @@ def check_weather(location: str) -> str:
 
 def main():
     if st.session_state.get("agent") is None:
-        agent = create_agent_instance(QUESTIONER_INSTRUCTIONS)
+        agent = create_agent_instance(QUESTIONER_INSTRUCTIONS, reasoning=False)
         st.session_state.agent = agent
     else:
         agent = st.session_state.agent

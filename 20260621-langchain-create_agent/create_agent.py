@@ -5,15 +5,23 @@ from langgraph.graph.state import CompiledStateGraph
 
 from llama_reasoning_chat import LlamaServerReasoningChatModel
 
-model = LlamaServerReasoningChatModel(
-    base_url="http://constance:30323/v1",
-    api_key="dummy",
-    model="gemma4:26b",
-    extra_body={"reasoning_format": "none"},
-)
 
+def create_agent_instance(instructions: str, reasoning: bool, tools: list = []) ->CompiledStateGraph:
+    if reasoning:
+        extra_body = {
+            "chat_template_kwargs": {"enable_thinking": False},
+            "reasoning_format": "none"
+        }
+    else:
+        extra_body = {}
 
-def create_agent_instance(instructions: str, tools: list = []) ->CompiledStateGraph:
+    model = LlamaServerReasoningChatModel(
+        base_url="http://constance:30323/v1",
+        api_key="dummy",
+        model="gemma4:26b",
+        extra_body=extra_body,
+    )
+
     return create_agent(
         model=model,
         tools=tools,

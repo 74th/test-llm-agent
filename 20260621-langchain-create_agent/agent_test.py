@@ -8,7 +8,7 @@ QUESTIONER_INSTRUCTIONS = """あなたは好奇心旺盛な質問者です。相
 def test_agent():
     print("==== TEST: test_agent ====")
 
-    agent = create_agent_instance(instructions=QUESTIONER_INSTRUCTIONS)
+    agent = create_agent_instance(instructions=QUESTIONER_INSTRUCTIONS, reasoning=False)
 
     res = agent.invoke(
         {"messages": [{"role": "user", "content": "日本の鳥について教えて"}]},
