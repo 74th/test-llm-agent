@@ -315,56 +315,64 @@ class LlamaServerReasoningChatModel(BaseChatModel):
         request["stream"] = True
 
         response_stream = self._client.chat.completions.create(**request)
+        try:
+            for response_chunk in response_stream:
+                chunk_fields = _extract_response_message_fields(response_chunk)
+                choices = chunk_fields.get("choices") or []
+                if not choices:
+                    continue
 
-        for response_chunk in response_stream:
-            chunk_fields = _extract_response_message_fields(response_chunk)
-            choices = chunk_fields.get("choices") or []
-            if not choices:
-                continue
+                choice_fields = _extract_response_message_fields(choices[0])
+                delta_fields = _extract_response_message_fields(
+                    choice_fields.get("delta")
+                )
 
-            choice_fields = _extract_response_message_fields(choices[0])
-            delta_fields = _extract_response_message_fields(choice_fields.get("delta"))
+                content = delta_fields.get("content") or ""
+                reasoning_content = (
+                    delta_fields.get("reasoning_content")
+                    or delta_fields.get("reasoning")
+                    or ""
+                )
+                tool_call_chunks = _extract_tool_call_chunks(
+                    delta_fields.get("tool_calls")
+                )
 
-            content = delta_fields.get("content") or ""
-            reasoning_content = (
-                delta_fields.get("reasoning_content")
-                or delta_fields.get("reasoning")
-                or ""
-            )
-            tool_call_chunks = _extract_tool_call_chunks(
-                delta_fields.get("tool_calls")
-            )
+                additional_kwargs: dict[str, Any] = {}
+                if reasoning_content:
+                    additional_kwargs["reasoning_content"] = reasoning_content
 
-            additional_kwargs: dict[str, Any] = {}
-            if reasoning_content:
-                additional_kwargs["reasoning_content"] = reasoning_content
+                generation_info: dict[str, Any] = {}
+                if model_name := chunk_fields.get("model"):
+                    generation_info["model"] = model_name
+                if response_id := chunk_fields.get("id"):
+                    generation_info["id"] = response_id
+                if finish_reason := choice_fields.get("finish_reason"):
+                    generation_info["finish_reason"] = finish_reason
 
-            generation_info: dict[str, Any] = {}
-            if model_name := chunk_fields.get("model"):
-                generation_info["model"] = model_name
-            if response_id := chunk_fields.get("id"):
-                generation_info["id"] = response_id
-            if finish_reason := choice_fields.get("finish_reason"):
-                generation_info["finish_reason"] = finish_reason
+                usage_fields = _extract_response_message_fields(
+                    chunk_fields.get("usage")
+                )
+                if usage_fields:
+                    generation_info["token_usage"] = usage_fields
 
-            usage_fields = _extract_response_message_fields(chunk_fields.get("usage"))
-            if usage_fields:
-                generation_info["token_usage"] = usage_fields
+                if timings := chunk_fields.get("timings"):
+                    generation_info["timings"] = timings
 
-            if timings := chunk_fields.get("timings"):
-                generation_info["timings"] = timings
+                if not (
+                    content or reasoning_content or tool_call_chunks or generation_info
+                ):
+                    continue
 
-            if not (
-                content or reasoning_content or tool_call_chunks or generation_info
-            ):
-                continue
-
-            yield ChatGenerationChunk(
-                message=AIMessageChunk(
-                    content=content,
-                    additional_kwargs=additional_kwargs,
-                    tool_call_chunks=tool_call_chunks,
-                    id=chunk_fields.get("id"),
-                ),
-                generation_info=generation_info or None,
-            )
+                yield ChatGenerationChunk(
+                    message=AIMessageChunk(
+                        content=content,
+                        additional_kwargs=additional_kwargs,
+                        tool_call_chunks=tool_call_chunks,
+                        id=chunk_fields.get("id"),
+                    ),
+                    generation_info=generation_info or None,
+                )
+        finally:
+            close = getattr(response_stream, "close", None)
+            if callable(close):
+                close()

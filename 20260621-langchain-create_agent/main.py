@@ -1,7 +1,6 @@
 import uuid
 
 import streamlit as st
-from langchain_core.messages import HumanMessage
 
 from create_agent import create_agent_instance
 
@@ -14,9 +13,47 @@ def check_weather(location: str) -> str:
     return f"It's always sunny in {location}"
 
 
+def _chunk_to_text(content) -> str:
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        texts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                texts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                text = block.get("text")
+                if isinstance(text, str):
+                    texts.append(text)
+        return "".join(texts)
+
+    return ""
+
+
+def _stream_agent_response(agent, user_query: str, thread_id: str):
+    stream = agent.stream(
+        {"messages": [{"role": "user", "content": user_query}]},
+        config={"configurable": {"thread_id": thread_id}},
+        stream_mode="messages",
+    )
+    try:
+        for chunk, metadata in stream:
+            if metadata.get("langgraph_node") != "model":
+                continue
+
+            content = _chunk_to_text(chunk.content)
+            if content:
+                yield content
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
+
+
 def main():
     if st.session_state.get("agent") is None:
-        agent = create_agent_instance(QUESTIONER_INSTRUCTIONS, reasoning=False)
+        agent = create_agent_instance(QUESTIONER_INSTRUCTIONS, False)
         st.session_state.agent = agent
     else:
         agent = st.session_state.agent
@@ -45,16 +82,15 @@ def main():
         # エージェントの実行と回答の表示
         with st.chat_message("assistant"):
             with st.spinner("思考中..."):
-                response = agent.invoke(
-                    {"messages": [HumanMessage(content=user_query)]},
-                    config={
-                        "configurable": {"thread_id": st.session_state["thread_id"]}
-                    },
+                content = st.write_stream(
+                    _stream_agent_response(
+                        agent,
+                        user_query,
+                        st.session_state["thread_id"],
+                    )
                 )
-                content = response["messages"][-1].content
-                st.write(content)
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": content}
+                    {"role": "assistant", "content": content or ""}
                 )
 
 

@@ -26,19 +26,25 @@ def _chunk_to_text(content) -> str:
 def _print_streaming_response(agent, message: str, label: str) -> None:
     print(f"{label}:", end=" ", flush=True)
 
-    for chunk, metadata in agent.stream(
+    stream = agent.stream(
         {"messages": [{"role": "user", "content": message}]},
         config={"configurable": {"thread_id": "test_thread_id"}},
         stream_mode="messages",
-    ):
-        if metadata.get("langgraph_node") != "model":
-            continue
+    )
+    try:
+        for chunk, metadata in stream:
+            if metadata.get("langgraph_node") != "model":
+                continue
 
-        content = _chunk_to_text(chunk.content)
-        if not content:
-            continue
+            content = _chunk_to_text(chunk.content)
+            if not content:
+                continue
 
-        print(content, end="", flush=True)
+            print(content, end="", flush=True)
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
 
     print()
 
