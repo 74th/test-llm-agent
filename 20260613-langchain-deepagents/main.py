@@ -12,6 +12,7 @@ from tavily import TavilyClient
 from llama_reasoning_chat import LlamaServerReasoningChatModel
 
 select_chat_model = "llama"
+reasoning = False
 
 if select_chat_model == "ollama":
     model = ChatOllama(
@@ -21,19 +22,26 @@ if select_chat_model == "ollama":
 
 elif select_chat_model == "openai":
     model = ChatOpenAI(
-        base_url="http://constance:30323/v1",
+        base_url=os.environ["LLAMA_SERVER_URL"],
         api_key="dummy",
         model="local-model",
         extra_body={"reasoning_format": "none"}
     )
 
 elif select_chat_model == "llama":
+
+    extra_body = {}
+    if not reasoning:
+        extra_body = {
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+
     model = LlamaServerReasoningChatModel(
-        base_url="http://constance:30323/v1",
+        base_url=os.environ["LLAMA_SERVER_URL"],
         api_key="dummy",
         model="local-model",
         max_tokens=1024*16,
-        extra_body={},
+        extra_body=extra_body,
 )
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
