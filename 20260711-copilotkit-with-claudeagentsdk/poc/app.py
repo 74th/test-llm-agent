@@ -63,10 +63,13 @@ def create_app(database: str | Path | None = None, adapter: ClaudeAgUiAdapter | 
 
         async def generate():
             final_status = "interrupted"
+            tool_names: dict[str, str] = {}
             try:
                 async for item in agent.stream(content, thread_id=thread_id, run_id=run_id, session_id=thread.get("agentSessionId")):
                     if item["type"] == "TOOL_CALL_START":
-                        repository.add_message(thread_id, "assistant", {"type": "tool_call", "toolCallId": item["toolCallId"], "name": item["toolCallName"]}, message_id=f"call-{item['toolCallId']}")
+                        tool_names[item["toolCallId"]] = item["toolCallName"]
+                    elif item["type"] == "TOOL_CALL_ARGS":
+                        repository.add_message(thread_id, "assistant", {"type": "tool_call", "toolCallId": item["toolCallId"], "name": tool_names.get(item["toolCallId"], "unknown"), "arguments": item["delta"]}, message_id=f"call-{item['toolCallId']}")
                     elif item["type"] == "TOOL_CALL_RESULT":
                         repository.add_message(thread_id, "tool", {"type": "tool_result", "toolCallId": item["toolCallId"], "content": item["content"]}, message_id=item["messageId"])
                     elif item["type"] == "RUN_FINISHED":
