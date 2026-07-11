@@ -1,0 +1,22 @@
+{
+	"dockerFile": "./Dockerfile",
+	"workspaceFolder": "/workspace",
+	"features": {},
+	"mounts": [
+      "source=${localEnv:HOME}/.cache/devcontainer/python/uv-cache,target=/var/uv/cache,type=bind,consistency=cached",
+      "source=${localEnv:HOME}/.config/gcloud/test-claude-agent-sdk-credential,target=/var/config/test-claude-agent-sdk-credential,type=bind,consistency=cached",
+	  "source=${localEnv:HOME}/.llm/codex/.codex,target=/home/vscode/.codex,type=bind,consistency=cached"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"charliermarsh.ruff",
+				"EditorConfig.EditorConfig"
+			]
+		}
+	},
+	"initializeCommand": ".devcontainer/initializeCommand.sh",
+	"postCreateCommand": ".devcontainer/postCreateCommand.sh",
+	"remoteUser": "vscode"
+}
