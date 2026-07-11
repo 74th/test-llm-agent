@@ -1,6 +1,6 @@
 {
   "dockerFile": "./Dockerfile",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspace/20260711-copilotkit-with-claudeagentsdk",
   "features": {
     "ghcr.io/devcontainers/features/node:2": {
       "version": "24"
@@ -11,6 +11,7 @@
     "source=${localEnv:HOME}/.config/gcloud/test-claude-agent-sdk-credential,target=/var/config/test-claude-agent-sdk-credential,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.llm/codex/.codex,target=/home/vscode/.codex,type=bind,consistency=cached"
   ],
+  "workspaceMount": "source=../,target=/workspace,type=bind,consistency=cached",
   "customizations": {
     "vscode": {
       "extensions": [

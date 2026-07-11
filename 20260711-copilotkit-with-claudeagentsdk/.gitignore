@@ -4,3 +4,7 @@
 __pycache__/
 *.py[cod]
 *-credential.json
+node_modules
+
+*.sqlite3
+web/.next/
