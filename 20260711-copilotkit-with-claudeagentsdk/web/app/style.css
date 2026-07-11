@@ -1,1 +1,219 @@
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#f4f1ea;color:#222}button,textarea{font:inherit}main{display:grid;grid-template-columns:280px 1fr;height:100vh}aside{padding:24px 16px;background:#17231e;color:#fff;overflow:auto}h1{font-size:20px;margin:0 0 18px}.new{width:100%;padding:11px;border:0;border-radius:8px;background:#d8a84e;font-weight:700}nav{display:grid;gap:8px;margin-top:18px}nav button{text-align:left;padding:12px;border:1px solid #43564d;border-radius:8px;background:transparent;color:#fff}nav button.selected{background:#2c4439;border-color:#d8a84e}nav small{display:block;color:#b9c5bf;margin-top:5px;font-size:11px}section{min-width:0;min-height:0;height:100%}.copilot-chat{height:100%}.weather-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:16px;border:1px solid #e1bf69;border-radius:14px;background:linear-gradient(135deg,#fff7d8,#ffedb4);color:#26352e}.weather-card .weather-icon{font-size:32px}.weather-card strong{display:block;font-size:16px}.weather-card p{margin:5px 0 0;white-space:pre-wrap}.spinner{display:inline-block;width:16px;height:16px;border:2px solid #b9cbc2;border-top-color:#1e6848;border-radius:50%;animation:spin .75s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation-duration:1.5s}}@media(max-width:700px){main{grid-template-columns:1fr;grid-template-rows:220px 1fr}aside{padding:14px}nav{display:flex;overflow:auto}nav button{min-width:190px}}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #202020;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  height: 100vh;
+}
+
+aside {
+  overflow: auto;
+  padding: 22px 14px;
+  border-right: 1px solid #e8e8e8;
+  background: #fff;
+  color: #202020;
+}
+
+h1 {
+  margin: 0 8px 16px;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.new {
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: #f2f2f2;
+  color: #202020;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.new:hover {
+  background: #e9e9e9;
+}
+
+nav {
+  display: grid;
+  gap: 2px;
+  margin-top: 14px;
+}
+
+nav button {
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #222;
+  text-align: left;
+  cursor: pointer;
+}
+
+nav button:hover,
+nav button.selected {
+  background: #f3f3f3;
+}
+
+nav b {
+  display: block;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+nav small {
+  display: block;
+  margin-top: 2px;
+  color: #777;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+section {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.copilot-chat {
+  height: 100%;
+}
+
+.copilot-chat,
+.copilot-chat [data-copilotkit] {
+  --cpk-spacing: 0.22rem;
+  --cpk-text-xs: 0.6875rem;
+  --cpk-text-sm: 0.8125rem;
+  --cpk-text-base: 0.875rem;
+  --cpk-text-lg: 1rem;
+  --cpk-text-xl: 1.125rem;
+  --cpk-text-2xl: 1.25rem;
+  --cpk-text-3xl: 1.5rem;
+  --background: #fff;
+  --foreground: #202020;
+  --card: #fff;
+  --card-foreground: #202020;
+  --primary: #222;
+  --primary-foreground: #fff;
+  --secondary: #f4f4f4;
+  --secondary-foreground: #222;
+  --muted: #f5f5f5;
+  --muted-foreground: #707070;
+  --accent: #f2f2f2;
+  --accent-foreground: #202020;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #888;
+}
+
+.copilot-chat .cpk\:prose p {
+  margin-block: 0.35rem !important;
+  line-height: 1.4 !important;
+}
+
+.copilot-chat .cpk\:prose ul,
+.copilot-chat .cpk\:prose ol {
+  margin-block: 0.4rem !important;
+}
+
+.copilot-chat .cpk\:prose li,
+.copilot-chat [data-streamdown="list-item"] {
+  margin-block: 0 !important;
+  padding-block: 0.12rem !important;
+  line-height: 1.4 !important;
+}
+
+.copilot-chat .copilotKitMessage {
+  margin-block: 0.3rem !important;
+}
+
+.weather-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #f5f5f5;
+  color: #222;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.weather-card .weather-icon {
+  filter: grayscale(1);
+  font-size: 24px;
+}
+
+.weather-card strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.weather-card p {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #ccc;
+  border-top-color: #333;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.5s; }
+}
+
+@media (max-width: 700px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 190px 1fr;
+  }
+
+  aside {
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  nav {
+    display: flex;
+    overflow: auto;
+  }
+
+  nav button {
+    min-width: 170px;
+  }
+}
