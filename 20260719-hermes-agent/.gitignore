@@ -1,0 +1,8 @@
+hermes-agent-src/
+workspace/
+hermes-data/*
+!hermes-data/config.example.yaml
+!hermes-data/skills/
+hermes-data/skills/*
+!hermes-data/skills/bus-timetable/
+!hermes-data/skills/bus-timetable/SKILL.md

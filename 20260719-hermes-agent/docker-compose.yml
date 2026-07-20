@@ -1,0 +1,32 @@
+services:
+  gateway:
+    build:
+      context: ./hermes-agent-src
+    image: local/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    # Host networking lets the container reach Ollama at 127.0.0.1:11434.
+    network_mode: host
+    volumes:
+      - ./hermes-data:/opt/data
+      - ./workspace:/workspace
+    environment:
+      HERMES_UID: "${HERMES_UID:-1000}"
+      HERMES_GID: "${HERMES_GID:-1000}"
+    command: ["gateway", "run"]
+
+  dashboard:
+    image: local/hermes-agent:latest
+    container_name: hermes-dashboard
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - gateway
+    volumes:
+      - ./hermes-data:/opt/data
+      - ./workspace:/workspace
+    environment:
+      HERMES_UID: "${HERMES_UID:-1000}"
+      HERMES_GID: "${HERMES_GID:-1000}"
+    # Localhost-only. The dashboard stores configuration and secrets.
+    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
