@@ -17,3 +17,25 @@ def test_sdk_messages_map_to_ordered_agui_events():
     assert types == ["RUN_STARTED", "TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_FINISHED"]
     assert "".join(item["delta"] for item in events if item["type"] == "TEXT_MESSAGE_CONTENT") == "東京は25℃です。"
     assert events[-1]["result"]["sessionId"] == "session-1"
+
+
+async def sdk_thinking_stream(**_):
+    for thinking in ["まず条件を", "確認します。"]:
+        yield StreamEvent("thinking", "session-1", {"type": "content_block_delta", "delta": {"type": "thinking_delta", "thinking": thinking}})
+    yield StreamEvent("text", "session-1", {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "回答です。"}})
+    yield ResultMessage("success", 10, 8, False, 1, "session-1")
+
+
+def test_thinking_deltas_map_to_reasoning_events_before_answer():
+    async def collect():
+        return [item async for item in ClaudeAgUiAdapter(sdk_thinking_stream).stream("考えて", thread_id="thread-1", run_id="run-1")]
+
+    events = asyncio.run(collect())
+    types = [item["type"] for item in events]
+    assert types == [
+        "RUN_STARTED", "REASONING_START", "REASONING_MESSAGE_START",
+        "REASONING_MESSAGE_CONTENT", "REASONING_MESSAGE_CONTENT",
+        "REASONING_MESSAGE_END", "REASONING_END", "TEXT_MESSAGE_START",
+        "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_FINISHED",
+    ]
+    assert "".join(item["delta"] for item in events if item["type"] == "REASONING_MESSAGE_CONTENT") == "まず条件を確認します。"

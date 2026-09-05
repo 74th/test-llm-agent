@@ -26,3 +26,14 @@ def test_one_active_run_per_thread(tmp_path):
     repo.begin_run(thread["id"], "run-1")
     with pytest.raises(RuntimeError, match="active run"):
         repo.begin_run(thread["id"], "run-2")
+
+
+def test_generated_title_does_not_overwrite_custom_title(tmp_path):
+    repo = ThreadRepository(tmp_path / "threads.sqlite3")
+    automatic = repo.create_thread()
+    custom = repo.create_thread("手動タイトル")
+
+    assert repo.set_generated_title(automatic["id"], "SDKタイトル") is True
+    assert repo.set_generated_title(custom["id"], "上書き禁止") is False
+    assert repo.get_thread(automatic["id"])["title"] == "SDKタイトル"
+    assert repo.get_thread(custom["id"])["title"] == "手動タイトル"

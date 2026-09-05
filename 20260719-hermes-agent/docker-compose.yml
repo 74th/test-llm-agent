@@ -13,6 +13,8 @@ services:
     environment:
       HERMES_UID: "${HERMES_UID:-1000}"
       HERMES_GID: "${HERMES_GID:-1000}"
+      # Probe the gateway health API across the separate container boundary.
+      GATEWAY_HEALTH_URL: http://127.0.0.1:8642
     command: ["gateway", "run"]
 
   dashboard:
@@ -28,5 +30,9 @@ services:
     environment:
       HERMES_UID: "${HERMES_UID:-1000}"
       HERMES_GID: "${HERMES_GID:-1000}"
+      # Gateway runs in a separate container, so check its loopback health API.
+      GATEWAY_HEALTH_URL: http://127.0.0.1:8642
+      # Gateway runs in another container, so dashboard checks its health API.
+      GATEWAY_HEALTH_URL: http://127.0.0.1:8642
     # Localhost-only. The dashboard stores configuration and secrets.
     command: ["dashboard", "--host", "0.0.0.0", "--no-open"]

@@ -10,6 +10,7 @@ async def sdk_messages(*, prompt: str, session_id: str | None = None) -> AsyncIt
     options = ClaudeAgentOptions(
         model=os.getenv("ANTHROPIC_MODEL"), resume=session_id,
         include_partial_messages=True, max_turns=5,
+        thinking={"type": "enabled", "budget_tokens": int(os.getenv("CLAUDE_THINKING_BUDGET", "2048"))},
         mcp_servers=build_server(), allowed_tools=["mcp__weather__get_today_weather"],
         disallowed_tools=["Bash", "Edit", "Glob", "Grep", "Read", "WebFetch", "WebSearch", "Write"],
         system_prompt="あなたは簡潔な日本語で答えるアシスタントです。天気の質問には必ず get_today_weather を使い、結果をそのまま報告してください。",

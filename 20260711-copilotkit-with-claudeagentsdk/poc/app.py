@@ -1,5 +1,6 @@
 """Starlette API exposing thread CRUD and an AG-UI compatible SSE endpoint."""
 from __future__ import annotations
+import asyncio
 import os
 import uuid
 from pathlib import Path
@@ -13,6 +14,7 @@ from starlette.routing import Route
 from poc.adapter import ClaudeAgUiAdapter, event, sse
 from poc.claude_runner import sdk_messages
 from poc.repository import ThreadRepository
+from poc.session_titles import resolve_session_title
 
 
 def create_app(database: str | Path | None = None, adapter: ClaudeAgUiAdapter | None = None) -> Starlette:
@@ -76,6 +78,9 @@ def create_app(database: str | Path | None = None, adapter: ClaudeAgUiAdapter | 
                         result = item.get("result", {})
                         repository.add_message(thread_id, "assistant", result.get("text", ""), message_id=result.get("messageId"))
                         repository.finish_run(thread_id, run_id, "completed", session_id=result.get("sessionId"), state={"lastRunId": run_id})
+                        if result.get("sessionId"):
+                            title = await asyncio.to_thread(resolve_session_title, result["sessionId"], content)
+                            repository.set_generated_title(thread_id, title)
                         final_status = "completed"
                     elif item["type"] == "RUN_ERROR":
                         repository.finish_run(thread_id, run_id, "error")

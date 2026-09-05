@@ -76,6 +76,16 @@ class ThreadRepository:
                     raise KeyError(thread_id)
         return self.get_thread(thread_id)
 
+    def set_generated_title(self, thread_id: str, title: str) -> bool:
+        """Set an automatic title without overwriting a user-selected title."""
+        with self.connect() as db:
+            cursor = db.execute(
+                """UPDATE threads SET title = ?, updated_at = ?
+                   WHERE id = ? AND title = '新しいセッション'""",
+                (title.strip(), _now(), thread_id),
+            )
+        return cursor.rowcount > 0
+
     def begin_run(self, thread_id: str, run_id: str) -> None:
         with self.connect() as db:
             cursor = db.execute("UPDATE threads SET last_run_status = 'running', active_run_id = ?, updated_at = ? WHERE id = ? AND active_run_id IS NULL", (run_id, _now(), thread_id))
