@@ -428,6 +428,10 @@ _人間側のセットアップ（claude.ai の operations、GitHub PAT 発行�
 - 両モードの結果差分:
 - 永続化の実装可否の判断（どのイベントで何が救えたはずか）:
 
+### アイドル解放（`--release-idle-session-min`）
+
+デフォルト（未設定 = `never`）ではセッションが idle でもコンテナは自動終了しない。実際に1時間以上放置しても `ccr-*` コンテナが残り続けることを確認した。両モードの `runner` 起動引数に `--release-idle-session-min 15` を追加したところ、以後は放置しても自動的にセッションが解放されコンテナが終了することを確認した（`--drain-grace-sec`/`--kill-session-after-min` 等、他の watchdog 系フラグも同様に未設定だとデフォルトで無効）。
+
 ### モード B: orchestrator 起動確認（task 6.5）
 
 - Mode A のコンテナを停止した状態で `compose.ondemand.yaml` を起動し、`/healthz` が `{"status":"ok", ..., "pool_id":"ccpool_01AayutJLzKvu1hTFA9B7fHD", "connected":true, ...}` を返すことを確認した。

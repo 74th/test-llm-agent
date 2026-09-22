@@ -2,9 +2,9 @@
 
 ## 1. 人間のセットアップ（claude.ai / GitHub 側、自動化不可）
 
-- [ ] 1.1 Owner ロールで [Cloud environments](https://claude.ai/admin-settings/cloud-environments) の **Allow self-hosted environments** を有効にし、**New** ボタンが表示されることを確認する
-- [ ] 1.2 environment を作成し、**Copy environment key** で environment secret を取得して `container/.env` 相当の安全な場所（git 管理外）に保存する。あわせて `ccpool_...` 形式の environment ID を控える。key は一度しか表示されない
-- [ ] 1.3 組織の GitHub 連携が有効で、セッション開始時にリポジトリを選択できることを確認する
+- [x] 1.1 Owner ロールで [Cloud environments](https://claude.ai/admin-settings/cloud-environments) の **Allow self-hosted environments** を有効にし、**New** ボタンが表示されることを確認する
+- [x] 1.2 environment を作成し、**Copy environment key** で environment secret を取得して `container/.env` 相当の安全な場所（git 管理外）に保存する。あわせて `ccpool_...` 形式の environment ID を控える。key は一度しか表示されない
+- [x] 1.3 組織の GitHub 連携が有効で、セッション開始時にリポジトリを選択できることを確認する
 - [x] 1.4 GitHub MCP 用の PAT を発行し（検証に必要な最小スコープ）、git 管理外に保存する
 - [x] 1.5 検証に使うリポジトリを 1 つ決める（design.md の Open Question）。決めた名前を `README.md` に記録する
 - [x] 1.6 ホスト側の時刻が NTP で同期していること（ずれ 5 分未満）と Docker が使えることを確認する
