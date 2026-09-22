@@ -9,7 +9,13 @@ set -u
 started_ms=$(date +%s%3N)
 
 /opt/claude/log-event.sh post_session_start "${CLAUDE_RUNNER_SESSION_ID:--}" \
-  exit_reason="${CLAUDE_RUNNER_EXIT_REASON:-}"
+  exit_reason="${CLAUDE_RUNNER_EXIT_REASON:-}" \
+  account_email="${CLAUDE_RUNNER_ACCOUNT_EMAIL:-}"
+
+# TEMP DEBUG (confirming CLAUDE_RUNNER_ACCOUNT_EMAIL above is actually set
+# here too, same as it is in spawn-runner — names only, never values).
+/opt/claude/log-event.sh debug_env_names_post_session "${CLAUDE_RUNNER_SESSION_ID:--}" \
+  names="$(env | cut -d= -f1 | sort | paste -sd, -)"
 
 IFS=':'
 paths_found=0

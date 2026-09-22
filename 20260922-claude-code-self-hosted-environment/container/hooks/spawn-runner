@@ -20,7 +20,9 @@ work_order_jwt=$(cat "$CLAUDE_RUNNER_WORK_ORDER_FILE")
 /opt/claude/log-event.sh spawn_request "${CLAUDE_RUNNER_SESSION_ID:--}" \
   order_id="$CLAUDE_RUNNER_ORDER_ID" \
   attempt="${CLAUDE_RUNNER_ATTEMPT:-}" \
-  repo_url="${CLAUDE_RUNNER_PRIMARY_REPO_URL:-}"
+  repo_url="${CLAUDE_RUNNER_PRIMARY_REPO_URL:-}" \
+  account_email="${CLAUDE_RUNNER_ACCOUNT_EMAIL:-}" \
+  account_id="${CLAUDE_RUNNER_ACCOUNT_ID:-}"
 
 export SPAWN_ORDER_ID="$CLAUDE_RUNNER_ORDER_ID"
 export SPAWN_SESSION_ID="${CLAUDE_RUNNER_SESSION_ID:-}"

@@ -7,6 +7,7 @@ set -euo pipefail
 
 /opt/claude/log-event.sh session_start "${CLAUDE_RUNNER_SESSION_ID:--}" \
   config_dir="${CLAUDE_CONFIG_DIR:-}" \
-  client_platform="${CLAUDE_RUNNER_CLIENT_PLATFORM:-}"
+  client_platform="${CLAUDE_RUNNER_CLIENT_PLATFORM:-}" \
+  account_email="${CCR_SESSION_ACCOUNT_EMAIL:-}"
 
 exec "$CLAUDE_RUNNER_CLAUDE_BIN" "$@" --permission-mode auto

@@ -81,11 +81,19 @@ entrypoint 起動時に `/mnt/workspace/.claude` を `/opt/claude-config/.claude
 
 | フック | 発火タイミング | 取れるもの |
 | :-- | :-- | :-- |
-| `spawn-runner`（モード B のみ） | ワークロード起動要求の直後 | order ID, session ID, repo URL |
-| `session-wrapper.sh`（`--exec-path`。ログは wrapper 側に自前で仕込む） | セッションの子プロセス起動直前 | session ID, config dir, client platform |
-| `post-session` | セッション終了後、ワークスペース破棄の**前**。ドキュメント曰く「未コミットの作業を救う唯一の機会」 | 各ワークスペースパスの存在有無・ファイル数・`git status --porcelain` の行数、`CLAUDE_RUNNER_EXIT_REASON`、フック自身の所要ミリ秒 |
+| `spawn-runner`（モード B のみ） | ワークロード起動要求の直後 | order ID, session ID, repo URL, **`CLAUDE_RUNNER_ACCOUNT_EMAIL` / `CLAUDE_RUNNER_ACCOUNT_ID`（実行者）** |
+| `session-wrapper.sh`（`--exec-path`。ログは wrapper 側に自前で仕込む） | セッションの子プロセス起動直前 | session ID, config dir, client platform, **`CCR_SESSION_ACCOUNT_EMAIL`（実行者）** |
+| `post-session` | セッション終了後、ワークスペース破棄の**前**。ドキュメント曰く「未コミットの作業を救う唯一の機会」 | 各ワークスペースパスの存在有無・ファイル数・`git status --porcelain` の行数、`CLAUDE_RUNNER_EXIT_REASON`、フック自身の所要ミリ秒、`CLAUDE_RUNNER_ACCOUNT_EMAIL`（未検証・下記参照） |
 
 `post-session` の終了コードはセッション結果に影響しない（失敗しても無視される）ため、成否と所要時間を自前でログに残す設計にしてある。タイムアウトは既定 60 秒（`--post-session-hook-timeout-sec`）。
+
+**実行者（誰がセッションを開始したか）の記録について**: 社内利用では監査上重要なので、実測で確認した。環境変数名を全ダンプして探したところ、次のものが見つかった。
+
+- `CLAUDE_RUNNER_ACCOUNT_EMAIL` / `CLAUDE_RUNNER_ACCOUNT_ID`: runner lifecycle hook（`spawn-runner`）の環境に存在。実測で `spawn_request` イベントに `account_email`/`account_id` として記録されることを確認済み。
+- `CCR_SESSION_ACCOUNT_EMAIL`: `session-wrapper.sh` の環境、および Claude Code の子プロセス自体（＝ `workspace/.claude/hooks/ccr-session-event.sh` などセッション内フック）からも見える。`session_start` と `session_hook_*` イベントに `account_email` として記録されることを確認済み。
+- `CLAUDE_CODE_ACCOUNT_UUID` / `CLAUDE_CODE_ORGANIZATION_UUID`: セッション内（Claude Code 自身のプロセス環境）にも存在するが、今回はメールアドレスの方が監査目的に直接使えるため未採用。
+
+これで `spawn_request`・`session_start`・`session_hook_*` の3イベント全てに実行者のメールアドレスが記録されるようになった。`post-session` 側は `CLAUDE_RUNNER_ACCOUNT_EMAIL` が同じく取れるはずという想定で実装済みだが、実機での確認はまだ（次にセッションが正常終了した時点で `events.jsonl` の `post_session_start` を見て検証する）。
 
 **(2) セッション内**（Claude Code hooks。セッション child プロセスの中で動く）
 
@@ -96,7 +104,7 @@ entrypoint 起動時に `/mnt/workspace/.claude` を `/opt/claude-config/.claude
 - `--exec-path`（`session-wrapper.sh`）を設定すると、lifecycle hook の `command` は**無視される**。セッション開始のログは wrapper 側にしか書けない。
 - `checkout` フックは組み込みのクローンを**置き換える**。`--use-anthropic-git-proxy` はこの組み込みクローン経路に依存するため、`checkout` フックを常設すると git プロキシ経由の認証が成立しない。したがって `checkout-probe/checkout` は本編の 2 モードには入れず、単発検証専用とする（下記「9. 実機検証」参照）。
 
-ログは `/var/log/ccr-events/events.jsonl` に 1 行 1 JSON で追記される。共通フィールドは `ts` / `event` / `session_id`。work-order JWT・セッショントークン・GitHub PAT・SA キーの値はどのログ経路にも出力しない（`log-event.sh` の呼び出し側が値を渡さない設計。task 7.2 で確認済み）。
+ログは `/var/log/ccr-events/events.jsonl` に 1 行 1 JSON で追記される。共通フィールドは `ts` / `event` / `session_id`。work-order JWT・セッショントークン・GitHub PAT・SA キーの値はどのログ経路にも出力しない（`log-event.sh` の呼び出し側が値を渡さない設計。task 7.2 で確認済み）。実行者のメールアドレス（`account_email`）だけは監査目的で意図的に記録している（下記「実行者の記録について」参照）。個人情報なので、このログを永続化・共有する場合は取り扱いに注意する。
 
 **セッション識別子の対応関係（同一セッションだと判別できる情報）**
 

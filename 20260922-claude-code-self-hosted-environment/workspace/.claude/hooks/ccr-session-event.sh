@@ -10,4 +10,5 @@ session_id=$(printf '%s' "$payload" | jq -r '.session_id // "-"')
 event_name=$(printf '%s' "$payload" | jq -r '.hook_event_name // "unknown"')
 tool_name=$(printf '%s' "$payload" | jq -r '.tool_name // ""')
 
-/opt/claude/log-event.sh "session_hook_${event_name}" "$session_id" tool_name="$tool_name"
+/opt/claude/log-event.sh "session_hook_${event_name}" "$session_id" \
+  tool_name="$tool_name" account_email="${CCR_SESSION_ACCOUNT_EMAIL:-}"

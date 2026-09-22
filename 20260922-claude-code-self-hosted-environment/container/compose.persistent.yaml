@@ -16,6 +16,8 @@ services:
       - --use-anthropic-git-proxy
       - --drain-grace-sec
       - "3600"
+      - --release-idle-session-min
+      - "15"
       - --exec-path
       - /opt/claude/session-wrapper.sh
       - --hooks-dir

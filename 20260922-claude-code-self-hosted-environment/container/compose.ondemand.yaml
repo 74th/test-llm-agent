@@ -22,7 +22,8 @@ services:
       # itself (that's the whole point of on-demand runners — see D7).
       SPAWN_RUNNER_ARGS: >-
         runner --capacity 1 --base-dir /var/lib/claude-runner
-        --use-anthropic-git-proxy --exec-path /opt/claude/session-wrapper.sh
+        --use-anthropic-git-proxy --release-idle-session-min 15
+        --exec-path /opt/claude/session-wrapper.sh
         --hooks-dir /opt/claude/hooks --log-level debug
       # Host-absolute paths only: docker.sh calls `docker run` through the
       # mounted docker.sock, so these bind-mount sources are resolved by the
