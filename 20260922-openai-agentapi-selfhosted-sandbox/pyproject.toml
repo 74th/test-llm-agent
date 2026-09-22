@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "self-hosted-session-verifier"
+version = "0.1.0"
+description = "A reproducible verifier for OpenAI Agents API self-hosted sessions."
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.102.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+self-hosted-verify = "self_hosted_verifier.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

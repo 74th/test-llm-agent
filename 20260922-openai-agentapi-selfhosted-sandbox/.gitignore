@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+*.egg-info/
+
+# Local credentials and experiment output.
+.env
+.env.*
+!.env.example
+state/
+logs/
+reports/
+secrets/
+*.jsonl

@@ -1,0 +1,7 @@
+{
+  "name": "config-probe",
+  "version": "0.1.0",
+  "description": "Verifies that a self-hosted session loads workspace capabilities.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

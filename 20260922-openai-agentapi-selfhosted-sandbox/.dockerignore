@@ -1,0 +1,7 @@
+.git
+.venv
+state
+logs
+reports
+secrets
+.env
