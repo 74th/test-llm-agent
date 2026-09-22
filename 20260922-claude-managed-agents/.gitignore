@@ -1,0 +1,11 @@
+secrets/
+.env
+test.http
+.provisioned.json
+logs/
+terraform/.terraform*
+*.tfstate*
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

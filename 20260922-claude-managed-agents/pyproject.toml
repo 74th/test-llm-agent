@@ -1,0 +1,25 @@
+[project]
+name = "cma-self-hosted-verification"
+version = "0.1.0"
+description = "Claude Managed Agents self-hosted container verification harness"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.7.0",
+    "google-cloud-bigquery>=3.25.0",
+    "docker>=7.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["worker*", "orchestrator*", "scripts*", "common*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

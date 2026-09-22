@@ -98,9 +98,41 @@ MCP の権限ポリシーは既定（`always_ask`）のままにする。承認�
 
 代替案: テーブルレベルの `google_bigquery_table_iam_member`。より狭いが、テーブルを Terraform の参照に含める必要があり、`co2` テーブルのスキーマ変更と競合しうる。データセットレベルで十分に狭いため採用しない（プロジェクト全体の dataViewer は付けない、が要件）。
 
-### D9. Skills API の呼び出し形（アップロードの具体形）は実装時に確定する
+### D9. Skills API の呼び出し形（確定済み）
 
-Skills API のエンドポイント（`POST /v1/skills`、`POST /v1/skills/{id}/versions`）は確定しているが、Python SDK での引数の形（ディレクトリの zip 化が必要か、ファイル列挙で渡すか）はこの計画時点の手元資料に含まれていない。実装の最初のタスクで公式ドキュメント（Skills Guide）または SDK の型定義から確定させる。仕様（`agent-provisioning`）は「アップロードされ、Agent に添付され、エージェントが認識する」という観測可能な振る舞いで書いてあるため、どちらの形でも spec は変わらない。
+公式ドキュメント（platform.claude.com の Skills Guide、2026-09-22 時点）で確認した。Skills API と Files API は **beta 対象外**（`skills-2025-10-02` のようなベータヘッダは不要）で、Python SDK では `client.skills.*`（`client.beta.skills.*` ではない）を使う。
+
+- 作成: `anthropic.lib.files_from_dir` ヘルパーでディレクトリを渡すのが最も簡単。
+  ```python
+  from anthropic.lib import files_from_dir
+  client = anthropic.Anthropic()
+  skill = client.skills.create(files=files_from_dir("skills/container-probe"))
+  # skill.id, skill.latest_version_id
+  ```
+  ディレクトリ内に `SKILL.md`（`name` / `description` の YAML frontmatter必須）を置けば、`files_from_dir` がその配下のファイルをすべて列挙して渡す。zip 化やファイルのタプル列挙（`[(filename, fileobj, mime), ...]`）も可能だが、`files_from_dir` を採用する。
+- 更新（新バージョン作成）: `client.skills.versions.create(skill_id=skill.id, files=files_from_dir("skills/container-probe"))`。
+- 一覧: `client.skills.list()` / `client.skills.list(source="custom")`。
+- Agent への添付: Agent の `skills` フィールドに `{"type": "custom", "skill_id": skill.id}` を入れる。
+  **`version` は明示的に渡してはいけない**（実 API で確認・design.md 執筆時点から方針変更）。
+  `client.skills.versions.create()` が返す `skver_...` 形式のバージョン ID をそのまま渡すと、
+  セッション作成時にその情報が内部的な数値 ID（例: `1790051182361008`）に変換されてセッションの
+  `agent.skills[].version` スナップショットに記録され、self-hosted ワーカーが
+  `client.beta.skills.versions.retrieve()` でそれを解決しようとして `400 Invalid version id`
+  になる。このエラーはワーカー側のログにのみ出力され、セッションのイベントストリームには一切
+  現れないため、モデル側は「skill が存在しない」ように振る舞う（自然文の問いかけへの回答からしか
+  気づけない）。`version` を省略する（`"latest"` として解決される）ことでこの問題を回避できる
+  ことを実 API で確認した。`scripts/provision.py` の `build_agent_config` は `version` を渡さない。
+
+Managed Agents 本体の呼び出し（Environment / Agent / Session / Vault）は `client.beta.{environments,agents,sessions,vaults}.*` で、`managed-agents-2026-04-01` ベータヘッダを SDK が自動付与する。Skills だけがこの規則の例外（out of beta）である点に注意する。
+
+**追記（2026-09-22 通し検証）:** `version` 省略後は self-hosted ワーカーが skill を
+`/workspace/skills/<name>/SKILL.md` として正しくダウンロードすることを直接確認した。ただし
+`claude-haiku-4-5` を使ったライブセッションでは、モデルが「container-probe skill を使って」と
+指示されても `/workspace/skills/` を自発的に探索せず、シェルコマンドとして実行しようとして
+失敗する挙動が複数回再現した。skill 配信自体は機能しているので、self-hosted 環境（またはこの
+モデル階層）でモデルに skills ディレクトリの存在を気づかせる仕組みが働いていない可能性がある。
+上位モデルでの再検証や Anthropic のドキュメント確認が必要な未解決の論点として残す
+（README の「通し検証の実測値・既知の制約」節を参照）。
 
 ## Risks / Trade-offs
 
@@ -118,3 +150,4 @@ Skills API のエンドポイント（`POST /v1/skills`、`POST /v1/skills/{id}/
 ## Open Questions
 
 - モード A の常駐コンテナで複数セッションを並行実行したときの挙動（同一 `/workspace` の競合）は、この検証の範囲では 1 セッションずつの逐次実行で確認する。並行時の分離が必要かは、永続化の設計時に改めて判断する。
+- モデルが skill の存在に自発的に気づかない問題（D9 追記参照）は未解決。self-hosted 環境特有の制約なのか、`claude-haiku-4-5` というモデル階層特有の挙動なのか切り分けられていない。上位モデルでの再現テストや、Anthropic サポート・ドキュメントへの確認が今後の課題。
