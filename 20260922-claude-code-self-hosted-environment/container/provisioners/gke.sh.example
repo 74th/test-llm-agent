@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# NOT IMPLEMENTED — migration sketch only (design.md D7).
+#
+# A GKE backend would receive exactly the same inputs as docker.sh, since
+# hooks/spawn-runner already normalized them to the provisioner-agnostic
+# contract below. It should never read CLAUDE_RUNNER_* directly.
+#
+# Inputs (identical to docker.sh):
+#   stdin              work-order JWT (one line)
+#   SPAWN_ORDER_ID      idempotency key, safe as a k8s resource name
+#   SPAWN_RUNNER_IMAGE  image to run
+#   SPAWN_RUNNER_ARGS   args for the image's entrypoint (space-separated)
+#   SPAWN_RUNNER_MOUNTS "<source>:<container-path>:<ro|rw>" list (space-separated)
+#   SPAWN_SESSION_ID    for labels/logs only, may be empty
+#
+# Sketch:
+#
+#   1. job_name="ccr-${SPAWN_ORDER_ID}"   # <=63 chars, lowercase — sanitize
+#      secret_name="${job_name}-secret"
+#
+#   2. Read the JWT from stdin and `kubectl create secret generic
+#      "$secret_name" --from-literal=SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET=...`
+#      Using `create` (not `apply`) plus checking the exit code covers
+#      idempotency: a second create for the same name fails harmlessly, and
+#      that failure should be treated as "already submitted", not an error.
+#
+#   3. Convert SPAWN_RUNNER_MOUNTS into the Job pod template:
+#      - a "ro" entry backed by a Secret/ConfigMap volume the credential
+#        already lives in (e.g. the GCP SA key), mounted readOnly: true
+#      - a "rw" entry (the event-log directory) backed by a hostPath or
+#        network volume the GKE nodes already have mounted
+#
+#   4. `kubectl apply -f -` a Job manifest built from a template, named
+#      "$job_name", with SPAWN_RUNNER_IMAGE as the container image,
+#      SPAWN_RUNNER_ARGS as its args, envFrom the Secret from step 2, and
+#      the volumes from step 3. `apply` (not `create`) makes a redelivered
+#      request with the same order ID a no-op instead of an error.
+#
+#   5. Exit-code contract is unchanged: 0 = Job applied, 1 = retryable
+#      (e.g. API server timeout), 2+ = non-retryable (e.g. malformed args).
+#      stderr carries only the failure reason, never the JWT or any
+#      credential value.
+#
+# Not implemented in this change (design.md Non-Goals: "Kubernetes 上での
+# 運用"). Left as a migration reference for when this environment moves off
+# a single Docker host.
+exit 2

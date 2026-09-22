@@ -1,0 +1,50 @@
+services:
+  claude-orchestrator:
+    image: ${RUNNER_IMAGE:-claude-self-hosted-runner:verify}
+    build:
+      context: .
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION}
+    command:
+      - orchestrator
+      - --environment-secret-file
+      - /run/secrets/environment-secret
+      - --hooks-dir
+      - /opt/claude/hooks
+      - --expected-spawn-seconds
+      - "75"
+    environment:
+      RUNNER_SPAWN_BACKEND: /opt/claude/provisioners/docker.sh
+      SPAWN_RUNNER_IMAGE: ${RUNNER_IMAGE:-claude-self-hosted-runner:verify}
+      # No --environment-secret-file here: the spawned runner registers
+      # with the work-order JWT that docker.sh writes as
+      # SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET, never the environment secret
+      # itself (that's the whole point of on-demand runners — see D7).
+      SPAWN_RUNNER_ARGS: >-
+        runner --capacity 1 --base-dir /var/lib/claude-runner
+        --use-anthropic-git-proxy --exec-path /opt/claude/session-wrapper.sh
+        --hooks-dir /opt/claude/hooks --log-level debug
+      # Host-absolute paths only: docker.sh calls `docker run` through the
+      # mounted docker.sock, so these bind-mount sources are resolved by the
+      # host's Docker daemon, not by this container's own filesystem.
+      SPAWN_RUNNER_MOUNTS: ${GCP_SA_KEY_PATH:?set an absolute GCP_SA_KEY_PATH in container/.env}:/run/secrets/gcp-sa.json:ro ${CCR_EVENT_LOG_DIR:?set an absolute CCR_EVENT_LOG_DIR in container/.env}:/var/log/ccr-events:rw ${WORKSPACE_DIR:?set an absolute WORKSPACE_DIR in container/.env}:/mnt/workspace:ro
+      GITHUB_PAT: ${GITHUB_PAT:?set GITHUB_PAT in container/.env}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-sa.json
+    volumes:
+      # entrypoint.sh runs the same workspace-copy step for both modes
+      # (design.md: "orchestrator 自身は config を使わないが、同じイメージを
+      # 使い回すため分岐を最小にする"), so orchestrator needs this mount too
+      # even though it never seeds a session config itself.
+      - ../workspace:/mnt/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./hooks:/opt/claude/hooks:ro
+      - ./provisioners:/opt/claude/provisioners:ro
+      - ${CCR_EVENT_LOG_DIR:?set an absolute CCR_EVENT_LOG_DIR in container/.env}:/var/log/ccr-events:rw
+    secrets:
+      - environment-secret
+    restart: always
+    stop_grace_period: 90s
+
+secrets:
+  environment-secret:
+    file: ${ENVIRONMENT_SECRET_FILE:?set ENVIRONMENT_SECRET_FILE in container/.env}

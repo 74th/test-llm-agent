@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Runner lifecycle hook (${hooks-dir}/post-session). This is the "last
+# chance to save uncommitted work" point per the docs, but D13/this change
+# deliberately does NOT persist anything — it only records what *could*
+# have been saved, so a later change can decide how. Exit status is ignored
+# by the runner either way, so failures are logged, not signaled.
+set -u
+
+started_ms=$(date +%s%3N)
+
+/opt/claude/log-event.sh post_session_start "${CLAUDE_RUNNER_SESSION_ID:--}" \
+  exit_reason="${CLAUDE_RUNNER_EXIT_REASON:-}"
+
+IFS=':'
+paths_found=0
+paths_total=0
+for ws in ${CLAUDE_RUNNER_WORKSPACE_PATHS:-}; do
+  [ -z "$ws" ] && continue
+  paths_total=$((paths_total + 1))
+  if [ -d "$ws" ]; then
+    paths_found=$((paths_found + 1))
+    file_count=$(find "$ws" -type f 2>/dev/null | wc -l | tr -d ' ')
+    dirty_lines=$(git -C "$ws" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    /opt/claude/log-event.sh post_session_workspace "${CLAUDE_RUNNER_SESSION_ID:--}" \
+      path="$ws" present="true" file_count="$file_count" dirty_lines="$dirty_lines" \
+      would_have_saved="$([ "$dirty_lines" -gt 0 ] && echo true || echo false)"
+  else
+    /opt/claude/log-event.sh post_session_workspace "${CLAUDE_RUNNER_SESSION_ID:--}" \
+      path="$ws" present="false"
+  fi
+done
+
+ended_ms=$(date +%s%3N)
+duration_ms=$((ended_ms - started_ms))
+
+/opt/claude/log-event.sh post_session_end "${CLAUDE_RUNNER_SESSION_ID:--}" \
+  exit_reason="${CLAUDE_RUNNER_EXIT_REASON:-}" \
+  paths_total="$paths_total" paths_found="$paths_found" duration_ms="$duration_ms"
+
+exit 0

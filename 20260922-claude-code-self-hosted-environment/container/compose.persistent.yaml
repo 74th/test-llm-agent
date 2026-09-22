@@ -1,0 +1,39 @@
+services:
+  claude-runner:
+    image: ${RUNNER_IMAGE:-claude-self-hosted-runner:verify}
+    build:
+      context: .
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION}
+    command:
+      - runner
+      - --environment-secret-file
+      - /run/secrets/environment-secret
+      - --capacity
+      - "1"
+      - --base-dir
+      - /var/lib/claude-runner
+      - --use-anthropic-git-proxy
+      - --drain-grace-sec
+      - "3600"
+      - --exec-path
+      - /opt/claude/session-wrapper.sh
+      - --hooks-dir
+      - /opt/claude/hooks
+      - --log-level
+      - debug
+    environment:
+      GITHUB_PAT: ${GITHUB_PAT:?set GITHUB_PAT in container/.env}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-sa.json
+    volumes:
+      - ../workspace:/mnt/workspace:ro
+      - ${GCP_SA_KEY_PATH:?set GCP_SA_KEY_PATH in container/.env}:/run/secrets/gcp-sa.json:ro
+      - ${CCR_EVENT_LOG_DIR:-./events}:/var/log/ccr-events:rw
+    secrets:
+      - environment-secret
+    restart: always
+    stop_grace_period: 90s
+
+secrets:
+  environment-secret:
+    file: ${ENVIRONMENT_SECRET_FILE:?set ENVIRONMENT_SECRET_FILE in container/.env}

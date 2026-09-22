@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Single-purpose checkout lifecycle hook, used ONLY for the standalone probe
+# in task 7.7/9.11 — never wired into compose.persistent.yaml or
+# compose.ondemand.yaml. It replaces the runner's built-in clone entirely
+# (design.md D14), which is incompatible with --use-anthropic-git-proxy
+# (the proxy needs the runner's own clone path to inject per-session auth),
+# so the two main modes never load this hook. Only tests that a
+# `checkout`-hooks-dir invocation happens and that CLAUDE_RUNNER_CHECKOUT_PATH
+# ends up with a working tree, against a public (unauthenticated) repo.
+set -euo pipefail
+
+: "${CLAUDE_RUNNER_REPO_URL:?CLAUDE_RUNNER_REPO_URL not set}"
+: "${CLAUDE_RUNNER_CHECKOUT_PATH:?CLAUDE_RUNNER_CHECKOUT_PATH not set}"
+
+/opt/claude/log-event.sh checkout_probe "${CLAUDE_RUNNER_SESSION_ID:--}" \
+  repo_url="$CLAUDE_RUNNER_REPO_URL" repo_ref="${CLAUDE_RUNNER_REPO_REF:-}"
+
+if [ -n "${CLAUDE_RUNNER_REPO_REF:-}" ]; then
+  git clone --quiet --no-single-branch "$CLAUDE_RUNNER_REPO_URL" "$CLAUDE_RUNNER_CHECKOUT_PATH"
+  git -C "$CLAUDE_RUNNER_CHECKOUT_PATH" checkout --quiet --detach "$CLAUDE_RUNNER_REPO_REF"
+else
+  git clone --quiet "$CLAUDE_RUNNER_REPO_URL" "$CLAUDE_RUNNER_CHECKOUT_PATH"
+fi

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Orchestrator lifecycle hook (${hooks-dir}/spawn-runner). Thin dispatcher:
+# takes in Anthropic's CLAUDE_RUNNER_* contract, normalizes it to the
+# provisioner-agnostic SPAWN_* contract (design.md D7), and execs whatever
+# $RUNNER_SPAWN_BACKEND points at. Never talks to Docker/GKE/etc directly —
+# that split is what lets the backend change without touching this file.
+#
+# CLAUDE_RUNNER_SESSION_ID is empty for pre-warming requests, so read it
+# under set -u with ${VAR:-}.
+set -euo pipefail
+
+: "${CLAUDE_RUNNER_WORK_ORDER_FILE:?CLAUDE_RUNNER_WORK_ORDER_FILE not set}"
+: "${CLAUDE_RUNNER_ORDER_ID:?CLAUDE_RUNNER_ORDER_ID not set}"
+: "${RUNNER_SPAWN_BACKEND:?RUNNER_SPAWN_BACKEND not set}"
+
+# The orchestrator deletes CLAUDE_RUNNER_WORK_ORDER_FILE once this hook
+# exits, so carry the JWT's *value* forward on stdin rather than the path.
+work_order_jwt=$(cat "$CLAUDE_RUNNER_WORK_ORDER_FILE")
+
+/opt/claude/log-event.sh spawn_request "${CLAUDE_RUNNER_SESSION_ID:--}" \
+  order_id="$CLAUDE_RUNNER_ORDER_ID" \
+  attempt="${CLAUDE_RUNNER_ATTEMPT:-}" \
+  repo_url="${CLAUDE_RUNNER_PRIMARY_REPO_URL:-}"
+
+export SPAWN_ORDER_ID="$CLAUDE_RUNNER_ORDER_ID"
+export SPAWN_SESSION_ID="${CLAUDE_RUNNER_SESSION_ID:-}"
+export SPAWN_RUNNER_IMAGE="${SPAWN_RUNNER_IMAGE:?SPAWN_RUNNER_IMAGE not set in orchestrator environment}"
+export SPAWN_RUNNER_ARGS="${SPAWN_RUNNER_ARGS:?SPAWN_RUNNER_ARGS not set in orchestrator environment}"
+export SPAWN_RUNNER_MOUNTS="${SPAWN_RUNNER_MOUNTS:-}"
+
+# exec, not a subshell call: the backend's exit code must reach the
+# orchestrator unchanged (0=submitted, 1=retryable, 2+=non-retryable).
+printf '%s' "$work_order_jwt" | exec "$RUNNER_SPAWN_BACKEND"
