@@ -26,6 +26,7 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
+    ToolCallChunk,
     ToolMessage,
 )
 from langchain_core.messages.tool import tool_call_chunk
@@ -94,11 +95,11 @@ def _extract_response_message_fields(message_obj: Any) -> dict[str, Any]:
     return {}
 
 
-def _extract_tool_call_chunks(tool_calls_raw: Any) -> list[dict[str, Any]]:
+def _extract_tool_call_chunks(tool_calls_raw: Any) -> list[ToolCallChunk]:
     if not tool_calls_raw:
         return []
 
-    tool_call_chunks: list[dict[str, Any]] = []
+    tool_call_chunks: list[ToolCallChunk] = []
     for raw_tool_call in tool_calls_raw:
         tool_call_fields = _extract_response_message_fields(raw_tool_call)
         function_fields = _extract_response_message_fields(

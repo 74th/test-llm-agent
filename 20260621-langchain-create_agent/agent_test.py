@@ -1,8 +1,9 @@
+from typing import Literal
+
 import pytest
+from langchain.tools import tool
 
 from create_agent import create_agent_instance
-
-QUESTIONER_INSTRUCTIONS = """あなたは好奇心旺盛な質問者です。相手の回答に対して、興味を持って頷くような反応をし、さらに深掘りするための質問を1つ投げかけてください。返答は音声化されるので、マークダウンや括弧などの表現は使わず、文章のみで答えてください。"""
 
 
 def _chunk_to_text(content) -> str:
@@ -51,8 +52,38 @@ def _print_streaming_response(agent, message: str, label: str) -> None:
 
 def test_agent():
     print("==== TEST: test_agent ====")
+    QUESTIONER_INSTRUCTIONS = """あなたは好奇心旺盛な質問者です。相手の回答に対して、興味を持って頷くような反応をし、さらに深掘りするための質問を1つ投げかけてください。返答は音声化されるので、マークダウンや括弧などの表現は使わず、文章のみで答えてください。"""
 
     agent = create_agent_instance(instructions=QUESTIONER_INSTRUCTIONS, reasoning=False)
 
     _print_streaming_response(agent, "日本の鳥について教えて", "1")
     _print_streaming_response(agent, "海に生息するものについて教えて", "2")
+
+
+def test_agent_tool():
+    print("==== TEST: test_agent_tool ====")
+
+    @tool
+    def control_aircon_on(mode: Literal["warm", "cool"]) -> str:
+        """エアコンをオンにします。暖房はwarm、冷房はcoolを指定してください。"""
+        print(f"エアコンを{mode}モードでオンにします")
+        return f"エアコンを{mode}モードでオンにしました"
+
+    @tool
+    def control_aircon_off() -> str:
+        """エアコンをオフにします"""
+        print("エアコンをオフにします")
+        return "エアコンをオフにしました"
+
+    instructions = """
+あなたは自宅にいる音声AIアシスタントです。
+エアコンの操作を行うには、 control_aircon_on と control_aircon_off というツールを使ってください。
+音声アシスタントであるため、マークダウン等の表現は使わず、3文程度の文章で答えてください。
+家電操作ツールを実行した場合には、短く1文程度で答えてください。
+"""
+
+    agent = create_agent_instance(instructions=instructions, reasoning=False, tools=[control_aircon_on, control_aircon_off])
+
+    _print_streaming_response(agent, "エアコンを暖房にして", "1")
+
+    _print_streaming_response(agent, "今日の夕飯に、豚バラ肉が余っているのだけれど、中華で何がいいかな", "1")

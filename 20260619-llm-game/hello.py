@@ -1,11 +1,8 @@
-import os
 import uuid
 
 import streamlit as st
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
-from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 
 from llama_reasoning_chat import LlamaServerReasoningChatModel
@@ -14,7 +11,7 @@ model = LlamaServerReasoningChatModel(
     base_url="http://localhost:11434/v1",
     api_key="dummy",
     model="gemma4:26b",
-    extra_body={},
+    extra_body={"reasoning_format": "none"},
 )
 
 
@@ -22,6 +19,7 @@ model = LlamaServerReasoningChatModel(
 QUESTIONER_INSTRUCTIONS = """あなたは好奇心旺盛な質問者です。相手の回答に対して、興味を持って頷くような反応をし、さらに深掘りするための質問を1つ投げかけてください。返答は音声化されるので、マークダウンや括弧などの表現は使わず、文章のみで答えてください。"""
 
 
+@st.cache_resource
 def create_agent_instance(instructions):
     return create_agent(
         model=model,
@@ -48,7 +46,7 @@ def main():
     # 3. Streamlit UIの実装
     st.title("AI エージェント")
 
-    if "thread_id" not in st.session_state.messages:
+    if "thread_id" not in st.session_state:
         st.session_state.thread_id = uuid.uuid4().hex
 
     if "messages" not in st.session_state:
@@ -66,17 +64,18 @@ def main():
         with st.chat_message("user"):
             st.write(user_query)
 
-    # エージェントの実行と回答の表示
-    with st.chat_message("assistant"):
-        with st.spinner("思考中..."):
-            response = agent.invoke(
-                {"input": user_query},
-                config={"configurable": {"thread_id": st.session_state["thread_id"]}},
-            )
-            st.write(response["output"])
-            st.session_state.messages.append(
-                {"role": "assistant", "content": response["output"]}
-            )
+        # エージェントの実行と回答の表示
+        with st.chat_message("assistant"):
+            with st.spinner("思考中..."):
+                response = agent.invoke(
+                    {"messages": [st.session_state.messages[-1]]},
+                    config={"configurable": {"thread_id": st.session_state["thread_id"]}},
+                )
+                content = response["messages"][-1].content
+                st.write(content)
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": content}
+                )
 
 if __name__ == "__main__":
     main()
